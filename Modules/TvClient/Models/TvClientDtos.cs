@@ -67,10 +67,10 @@ public record ProviderItemDto(
     string code,
     string name,
     string url,
-    int priority,
+    [property: Newtonsoft.Json.JsonProperty(DefaultValueHandling = Newtonsoft.Json.DefaultValueHandling.Include)] int priority,
     bool available,
-    bool supports_series,
-    bool supports_movie
+    [property: Newtonsoft.Json.JsonProperty(DefaultValueHandling = Newtonsoft.Json.DefaultValueHandling.Include)] bool supports_series,
+    [property: Newtonsoft.Json.JsonProperty(DefaultValueHandling = Newtonsoft.Json.DefaultValueHandling.Include)] bool supports_movie
 );
 
 public record ProviderOptionsResponseDto(

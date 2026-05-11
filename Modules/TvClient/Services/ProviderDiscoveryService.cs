@@ -41,6 +41,21 @@ public class ProviderDiscoveryService
             .Select((v, i) => (v: v.ToLowerInvariant(), i))
             .ToDictionary(x => x.v, x => x.i);
 
+        // Context params appended to each provider URL so provider controllers
+        // know which title to serve (bare event URLs lack these).
+        string contextSuffix =
+            $"id={context.tmdb_id}" +
+            $"&imdb_id={HttpUtility.UrlEncode(context.imdb_id ?? string.Empty)}" +
+            $"&kinopoisk_id={HttpUtility.UrlEncode(context.kinopoisk_id ?? "0")}" +
+            $"&title={HttpUtility.UrlEncode(context.title ?? string.Empty)}" +
+            $"&original_title={HttpUtility.UrlEncode(context.original_title ?? string.Empty)}" +
+            $"&original_language={HttpUtility.UrlEncode(context.original_language ?? string.Empty)}" +
+            $"&year={context.year}" +
+            $"&serial={(context.serial ? 1 : 0)}";
+
+        if (!string.IsNullOrWhiteSpace(auth))
+            contextSuffix += "&" + auth;
+
         var providerUrls = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var providers = new List<ProviderItemDto>(arr.Count);
 
@@ -52,7 +67,8 @@ public class ProviderDiscoveryService
             if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(url))
                 continue;
 
-            providerUrls[code] = url;
+            string fullUrl = url.Contains('?') ? $"{url}&{contextSuffix}" : $"{url}?{contextSuffix}";
+            providerUrls[code] = fullUrl;
 
             int priority = order.TryGetValue(code, out int idx)
                 ? idx
@@ -61,7 +77,7 @@ public class ProviderDiscoveryService
             providers.Add(new ProviderItemDto(
                 code,
                 name,
-                url,
+                url,   // bare URL for client display; fullUrl is used internally
                 priority,
                 true,
                 context.serial,
