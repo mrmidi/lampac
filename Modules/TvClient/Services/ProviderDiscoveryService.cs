@@ -67,8 +67,15 @@ public class ProviderDiscoveryService
             if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(url))
                 continue;
 
-            string fullUrl = url.Contains('?') ? $"{url}&{contextSuffix}" : $"{url}?{contextSuffix}";
-            providerUrls[code] = fullUrl;
+            // Use path-only URL so InternalApiClient routes via LocalBase (direct to lampac:9118),
+            // bypassing Caddy and its IP allow-list.
+            string pathAndQuery = Uri.TryCreate(url, UriKind.Absolute, out var uri)
+                ? uri.PathAndQuery
+                : url;
+            string internalUrl = pathAndQuery.Contains('?')
+                ? $"{pathAndQuery}&{contextSuffix}"
+                : $"{pathAndQuery}?{contextSuffix}";
+            providerUrls[code] = internalUrl;
 
             int priority = order.TryGetValue(code, out int idx)
                 ? idx
