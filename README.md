@@ -62,7 +62,7 @@
 
 ### Docker
 
-**Основной сценарий** — `docker-compose.yaml`: Lampac за reverse proxy Caddy (публичные порты **80/443**), а сам Lampac доступен только во внутренней Docker-сети (`lampac:9118`).
+**Основной сценарий** — `docker-compose.yaml`: Lampac за reverse proxy Caddy (публичные порты **80/8443**), а сам Lampac доступен только во внутренней Docker-сети (`lampac:9118`).
 
 ```bash
 git clone https://github.com/lampac-nextgen/lampac.git
@@ -81,11 +81,11 @@ docker compose up -d
 Перед запуском на VPS:
 
 1. Настройте DNS A/AAAA-запись домена на IP сервера.
-2. Откройте входящие порты **80/tcp** и **443/tcp**.
+2. Откройте входящие порты **80/tcp** и **8443/tcp**.
 3. Укажите `DOMAIN` в `.env` (и при желании `ACME_EMAIL` для Let's Encrypt).
 
 > [!WARNING]
-> Не публикуйте Lampac напрямую в интернет (порт 9118). В дефолтном compose доступ снаружи должен идти только через Caddy.
+> Не публикуйте Lampac напрямую в интернет (порт 9118). В дефолтном compose доступ снаружи должен идти только через Caddy на `:8443`.
 
 <details>
 <summary><strong>Тома и сеть</strong></summary>
@@ -104,6 +104,8 @@ docker compose up -d
 | `caddy_config` (named volume) | `/config` | Runtime-конфиг Caddy |
 
 Сеть по умолчанию — обычный Docker bridge без фиксированного IP и `container_name` (это упрощает запуск нескольких инстансов через разные project names).
+
+Публичный HTTPS-адрес будет вида `https://lamp.mrmidi.net:8443`.
 
 HTTP-only bootstrap (если домен/сертификаты ещё не готовы):
 
@@ -884,7 +886,7 @@ lampac/
 │   ├── base.conf               # Дефолтные значения
 │   ├── example.init.conf       # Пример конфига (JSON)
 │   └── example.init.yaml       # Пример конфига (YAML)
-├── docker-compose.yaml         # Production (Caddy 80/443 → Lampac 9118 internal)
+├── docker-compose.yaml         # Production (Caddy 80/8443 → Lampac 9118 internal)
 ├── docker-compose.dev.yaml     # Dev (порт 29118)
 ├── Caddyfile                   # Caddy HTTPS reverse proxy (DOMAIN)
 ├── Caddyfile.http              # HTTP-only bootstrap proxy config

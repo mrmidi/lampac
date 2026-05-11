@@ -81,6 +81,7 @@ public class BaseController : Controller
     #region mylocalip
     static string lastMyIp = null;
 
+    [NonAction]
     async public ValueTask<string> mylocalip()
     {
         string key = "BaseController:mylocalip";

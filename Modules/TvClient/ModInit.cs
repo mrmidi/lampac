@@ -1,3 +1,5 @@
+using Shared.Models.AppConf;
+
 namespace TvClient;
 
 public class ModInit : IModuleLoaded

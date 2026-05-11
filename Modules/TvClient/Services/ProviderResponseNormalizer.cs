@@ -200,6 +200,10 @@ public class ProviderResponseNormalizer
 
         foreach (var node in nodes)
         {
+              string className = node.GetAttributeValue("class", string.Empty) ?? string.Empty;
+              if (className.Contains("videos__button", StringComparison.OrdinalIgnoreCase))
+                  continue;
+
             string json = node.GetAttributeValue("data-json", string.Empty);
             if (string.IsNullOrWhiteSpace(json))
                 continue;

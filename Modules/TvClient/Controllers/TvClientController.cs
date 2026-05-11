@@ -3,7 +3,6 @@ using TvClient.Services;
 
 namespace TvClient.Controllers;
 
-[ApiController]
 public class TvClientController : BaseController
 {
     AuthContext ReadAuth() => new(

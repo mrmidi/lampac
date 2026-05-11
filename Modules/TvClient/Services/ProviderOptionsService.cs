@@ -172,14 +172,14 @@ public class ProviderOptionsService
         {
             var candidate = new PlayCandidateDto(i.url, i.stream, i.method, i.headers, i.quality, i.subtitles);
             var play = PlaybackSelection.ToPlayResult(candidate, requestedQuality, out string selectedQuality);
-            var qlist = (i.quality?.Keys ?? Array.Empty<string>()).Select(PlaybackSelection.NormalizeQuality).Distinct(StringComparer.OrdinalIgnoreCase).OrderByDescending(PlaybackSelection.QualityRank).ToArray();
+            var qlist = (i.quality?.Keys?.ToArray() ?? Array.Empty<string>()).Select(PlaybackSelection.NormalizeQuality).Distinct(StringComparer.OrdinalIgnoreCase).OrderByDescending(PlaybackSelection.QualityRank).ToArray();
 
             return new MovieStreamOptionDto(
                 i.translate,
                 i.translate_id,
                 string.IsNullOrWhiteSpace(selectedQuality) ? i.maxquality : selectedQuality,
                 qlist,
-                i.subtitles ?? Array.Empty<SubtitleOptionDto>(),
+                i.subtitles?.ToArray() ?? Array.Empty<SubtitleOptionDto>(),
                 new PlayCandidateDto(play.url, i.stream, i.method, i.headers, i.quality, i.subtitles)
             );
         }).ToArray();
@@ -440,7 +440,7 @@ public class ProviderOptionsService
     static EpisodeOptionDto ToEpisodeOption(NormalizedEpisode ep, string status, string airDate, int? daysUntil)
     {
         var candidate = new PlayCandidateDto(ep.url, ep.stream, ep.method, ep.headers, ep.quality, ep.subtitles);
-        var qualities = (ep.quality?.Keys ?? Array.Empty<string>())
+        var qualities = (ep.quality?.Keys?.ToArray() ?? Array.Empty<string>())
             .Select(PlaybackSelection.NormalizeQuality)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderByDescending(PlaybackSelection.QualityRank)
@@ -457,7 +457,7 @@ public class ProviderOptionsService
             qualities,
             ep.translation,
             ep.translation_id,
-            ep.subtitles ?? Array.Empty<SubtitleOptionDto>(),
+            ep.subtitles?.ToArray() ?? Array.Empty<SubtitleOptionDto>(),
             candidate
         );
     }

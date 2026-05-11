@@ -90,7 +90,7 @@ public class PlaybackResolveService
 
         var translation = options.translations?.FirstOrDefault(t => t.id.Equals(selectedEpisode.translation_id, StringComparison.OrdinalIgnoreCase));
 
-        int queueLimit = Math.Max(1, ModInit.conf.queue_limit);
+        int queueLimit = Math.Max(1, ModInit.conf?.queue_limit ?? 1);
 
         var upNext = candidates
             .Where(e => e.episode > selectedEpisode.episode)

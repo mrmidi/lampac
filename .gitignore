@@ -221,6 +221,7 @@ ClientBin/
 
 # Local Compose environment overrides / secrets
 .env
+lampac-docker/config/init.conf
 *.dbmdl
 *.dbproj.schemaview
 *.jfm
