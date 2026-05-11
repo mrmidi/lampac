@@ -1,0 +1,16 @@
+global using Microsoft.AspNetCore.Mvc;
+global using Newtonsoft.Json.Linq;
+global using Shared;
+global using Shared.Models.Base;
+global using Shared.Models.Events;
+global using Shared.Models.Module;
+global using Shared.Models.Module.Interfaces;
+global using Shared.Services;
+global using System;
+global using System.Collections.Generic;
+global using System.Globalization;
+global using System.Linq;
+global using System.Net;
+global using System.Text.RegularExpressions;
+global using System.Threading.Tasks;
+global using System.Web;

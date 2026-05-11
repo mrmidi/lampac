@@ -19,6 +19,7 @@
     <Project Path="Modules/TorrServer/TorrServer.csproj" />
     <Project Path="Modules/Tracks/Tracks.csproj" />
     <Project Path="Modules/Transcoding/Transcoding.csproj" />
+    <Project Path="Modules/TvClient/TvClient.csproj" />
     <Project Path="Modules/WatchTogether/WatchTogether.csproj" />
     <Project Path="Modules/WebLog/WebLog.csproj" />
   </Folder>
@@ -136,4 +137,5 @@
   <Project Path="Online/Online.csproj" />
   <Project Path="Shared/Shared.csproj" />
   <Project Path="SISI/SISI.csproj" />
+  <Project Path="Tests/TvClient.Tests/TvClient.Tests.csproj" />
 </Solution>

@@ -918,3 +918,26 @@ lampac/
 ---
 
 [![Star History Chart](https://api.star-history.com/svg?repos=lampac-nextgen/lampac&type=Date)](https://star-history.com/#lampac-nextgen/lampac&Date)
+
+## TvClient API (v1)
+
+A new module `TvClient` exposes a stable app-facing API for macOS/tvOS clients.
+
+Base route: `/api/tv/v1`
+
+Endpoints:
+
+- `GET /api/tv/v1/home?lang=en-US&page=1`
+- `GET /api/tv/v1/movies?feed=trending|now_playing|popular&page=1&lang=en-US`
+- `GET /api/tv/v1/tv?feed=trending|popular|on_the_air|airing_today&page=1&lang=en-US`
+- `GET /api/tv/v1/search?q=<text>&media=all|movie|tv&page=1&lang=en-US`
+- `GET /api/tv/v1/title/{media}/{tmdbId}?lang=en-US`
+- `GET /api/tv/v1/title/{media}/{tmdbId}/providers`
+- `GET /api/tv/v1/title/{media}/{tmdbId}/providers/{provider}/options?season=1`
+- `POST /api/tv/v1/play/resolve`
+
+Notes:
+
+- Existing `/lite/*` provider behavior is untouched.
+- Provider payloads are normalized server-side (JSON first, HTML fallback).
+- `watching_now` is intentionally disabled in v1 (`enabled=false`, empty items).

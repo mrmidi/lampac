@@ -1,0 +1,12 @@
+{
+  "enable": true,
+  "dynamic": true,
+  "tree": [
+    "GlobalUsings.cs",
+    "Controllers",
+    "Models",
+    "Services",
+    "ModInit.cs",
+    "ModuleConf.cs"
+  ]
+}
