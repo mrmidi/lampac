@@ -62,7 +62,7 @@
 
 ### Docker
 
-**Основной сценарий** — `docker-compose.yaml`, порт **9118**.
+**Основной сценарий** — `docker-compose.yaml`: Lampac за reverse proxy Caddy (публичные порты **80/443**), а сам Lampac доступен только во внутренней Docker-сети (`lampac:9118`).
 
 ```bash
 git clone https://github.com/lampac-nextgen/lampac.git
@@ -71,12 +71,21 @@ cd lampac
 mkdir -p lampac-docker/config lampac-docker/plugins
 cp config/example.init.conf lampac-docker/config/init.conf
 printf '%s' 'ваш_пароль_root' > lampac-docker/config/passwd
+cp Modules/LampaWeb/plugins/lampainit.js lampac-docker/plugins/lampainit.js
+cp .env.example .env
 
-# Раскомментируйте блок volumes в docker-compose.yaml
+# Укажите ваш домен в .env (DOMAIN=...)
 docker compose up -d
 ```
 
-По умолчанию все тома закомментированы — контейнер стартует с `init.conf` и `passwd` из образа. Рабочая директория в контейнере — `/lampac`; файлы читаются из её корня, а не из подкаталога `config/`.
+Перед запуском на VPS:
+
+1. Настройте DNS A/AAAA-запись домена на IP сервера.
+2. Откройте входящие порты **80/tcp** и **443/tcp**.
+3. Укажите `DOMAIN` в `.env` (и при желании `ACME_EMAIL` для Let's Encrypt).
+
+> [!WARNING]
+> Не публикуйте Lampac напрямую в интернет (порт 9118). В дефолтном compose доступ снаружи должен идти только через Caddy.
 
 <details>
 <summary><strong>Тома и сеть</strong></summary>
@@ -89,23 +98,23 @@ docker compose up -d
 | `./lampac-docker/cache` | `/lampac/cache` | Кеш |
 | `./lampac-docker/database` | `/lampac/database` | БД (Sync, TimeCode, SISI) |
 | `./lampac-docker/mods/<Name>` | `/lampac/mods/<Name>` | Пользовательские модули |
+| `./Caddyfile` | `/etc/caddy/Caddyfile` | HTTPS reverse proxy конфиг |
+| `./Caddyfile.http` | `/etc/caddy/Caddyfile.http` | HTTP-only bootstrap конфиг |
+| `caddy_data` (named volume) | `/data` | Сертификаты и state Caddy |
+| `caddy_config` (named volume) | `/config` | Runtime-конфиг Caddy |
 
-Сеть по умолчанию — bridge с IP `10.10.10.10`. Для `host`-режима раскомментируйте `network_mode: host` в compose-файле и согласуйте блоки `ports` / `networks`.
+Сеть по умолчанию — обычный Docker bridge без фиксированного IP и `container_name` (это упрощает запуск нескольких инстансов через разные project names).
 
-Минимальный пример сервиса:
+HTTP-only bootstrap (если домен/сертификаты ещё не готовы):
 
-```yaml
-services:
-  lampac:
-    image: ghcr.io/lampac-nextgen/lampac
-    ports:
-      - "9118:9118"
-    shm_size: 1024mb
-    restart: unless-stopped
-    volumes:
-      - ./lampac-docker/config/passwd:/lampac/passwd
-      - ./lampac-docker/config/init.conf:/lampac/init.conf
-      - ./lampac-docker/plugins/lampainit.js:/lampac/plugins/override/lampainit.js
+```bash
+HTTP_ONLY=1 docker compose up -d
+```
+
+Локальный debug-доступ к Lampac на `127.0.0.1:9118` (без публикации в интернет):
+
+```bash
+docker compose --profile debug up -d
 ```
 
 </details>
@@ -126,7 +135,7 @@ cp Modules/LampaWeb/plugins/lampainit.js lampac-docker/plugins/lampainit.js
 docker compose -f docker-compose.dev.yaml up -d
 ```
 
-> Оба compose-файла используют `container_name: lampac` — одновременный запуск без правки невозможен.
+> `docker-compose.yaml` и `docker-compose.dev.yaml` оба задают `name: lampac`; для одновременного запуска используйте разный project name (`-p`, например `-p lampac-dev`).
 
 </details>
 
@@ -875,8 +884,11 @@ lampac/
 │   ├── base.conf               # Дефолтные значения
 │   ├── example.init.conf       # Пример конфига (JSON)
 │   └── example.init.yaml       # Пример конфига (YAML)
-├── docker-compose.yaml         # Production (порт 9118)
+├── docker-compose.yaml         # Production (Caddy 80/443 → Lampac 9118 internal)
 ├── docker-compose.dev.yaml     # Dev (порт 29118)
+├── Caddyfile                   # Caddy HTTPS reverse proxy (DOMAIN)
+├── Caddyfile.http              # HTTP-only bootstrap proxy config
+├── .env.example                # Пример переменных окружения для Compose
 ├── Dockerfile                  # Multi-arch образ (amd64, arm64)
 ├── build.sh                    # dotnet publish Core/Core.csproj → publish/
 ├── install.sh                  # Нативная установка Linux

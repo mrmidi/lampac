@@ -1,52 +1,87 @@
 ---
-# Lampac — primary Compose file (production-like run on your machine). Use `docker compose up -d` from the repo root.
+# Lampac — secure VPS default:
+# - Lampac listens only on the internal Docker network
+# - Caddy is the public edge (80/443) with automatic HTTPS
 #
-# BEFORE you uncomment `volumes` below:
-#   1. Create host dirs: mkdir -p lampac-docker/config lampac-docker/plugins
-#   2. Copy config: cp config/example.init.conf lampac-docker/config/init.conf
-#   3. Root password (one line): printf '%s' 'your_strong_password' > lampac-docker/config/passwd
-#   4. Uncomment the entire `volumes:` block (and each volume line under it).
-#
-# If you skip step 4, the container uses init.conf/passwd baked into the image — host files are ignored.
-# Full walkthrough: README.md → «Быстрый старт» → Docker.
+# Env contract:
+# - DOMAIN: required for HTTPS mode (example: lampac.example.com)
+# - ACME_EMAIL: recommended for Let's Encrypt account/contact
+# - HTTP_ONLY=1: optional bootstrap mode (HTTP only on :80, no TLS)
 #
 name: lampac
 
 services:
   lampac:
     image: ghcr.io/lampac-nextgen/lampac
-    container_name: lampac
-    # Use host networking instead of bridge below: uncomment the next line and remove or adjust `ports` / `networks`.
-    # network_mode: host
-    networks:
-      lampac:
-        ipv4_address: 10.10.10.10
-    ports:
-      - 9118:9118
     restart: unless-stopped
     shm_size: 1024mb
     logging:
       options:
         tag: "{{.Name}}"
-    # --- Mount your own files (commented by default). Paths are relative to this compose file. ---
-    # volumes:
-    #   # Required for custom setup: root password (WebLog, etc.) → must exist on host before `up`
-    #   - ./lampac-docker/config/passwd:/lampac/passwd
-    #   # Main JSON/YAML config (hot-reloaded). In-container path is always /lampac/init.conf
-    #   - ./lampac-docker/config/init.conf:/lampac/init.conf
-    #   # Optional: extra user module dir (see README → Docker → manifest.json). Example name is illustrative.
-    #   - ./lampac-docker/mods/BulbaCrawler:/lampac/mods/BulbaCrawler
-    #   # Optional: Lampa client plugin override
-    #   - ./lampac-docker/plugins/lampainit.js:/lampac/plugins/override/lampainit.js
-    #   # Optional: persist cache across restarts
-    #   - ./lampac-docker/cache:/lampac/cache
-    #   # Optional: persist SQLite / local DB dirs
-    #   - ./lampac-docker/database:/lampac/database
+    expose:
+      - "9118"
+    volumes:
+      - ./lampac-docker/config/passwd:/lampac/passwd:ro
+      - ./lampac-docker/config/init.conf:/lampac/init.conf:ro
+      - ./lampac-docker/plugins/lampainit.js:/lampac/plugins/override/lampainit.js
+      - ./lampac-docker/cache:/lampac/cache
+      - ./lampac-docker/database:/lampac/database
+      # Optional: mount user modules (README → Docker → manifest.json / mods)
+      # - ./lampac-docker/mods/BulbaCrawler:/lampac/mods/BulbaCrawler
+    networks:
+      - backend
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - lampac
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+      HTTP_ONLY: ${HTTP_ONLY:-0}
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        if [ "${HTTP_ONLY}" = "1" ]; then
+          echo "Starting Caddy in HTTP-only bootstrap mode";
+          exec caddy run --config /etc/caddy/Caddyfile.http --adapter caddyfile;
+        fi;
+
+        if [ -z "${DOMAIN}" ]; then
+          echo "ERROR: DOMAIN is required unless HTTP_ONLY=1";
+          exit 1;
+        fi;
+
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile.http:/etc/caddy/Caddyfile.http:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - backend
+
+  lampac-debug-port:
+    image: alpine/socat
+    profiles: ["debug"]
+    restart: unless-stopped
+    depends_on:
+      - lampac
+    command: TCP-LISTEN:9118,fork,reuseaddr,bind=0.0.0.0 TCP:lampac:9118
+    ports:
+      - "127.0.0.1:9118:9118"
+    networks:
+      - backend
 
 networks:
-  lampac:
-    name: lampac
+  backend:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 10.10.10.0/24
+
+volumes:
+  caddy_data:
+  caddy_config:

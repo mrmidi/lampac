@@ -218,6 +218,9 @@ _pkginfo.txt
 ClientBin/
 ~$*
 *~
+
+# Local Compose environment overrides / secrets
+.env
 *.dbmdl
 *.dbproj.schemaview
 *.jfm
