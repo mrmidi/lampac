@@ -76,6 +76,22 @@ echo "TvClient v1 — E2E smoke tests"
 echo "BASE: $BASE"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+# Wait for server to be ready (Roslyn compilation can take 10-20s after restart)
+echo -n "Waiting for server..."
+for i in $(seq 1 30); do
+    if curl -sf --max-time 3 "$BASE/api/tv/v1/home" >/dev/null 2>&1; then
+        echo " ready."
+        break
+    fi
+    echo -n "."
+    sleep 2
+    if [[ $i -eq 30 ]]; then
+        echo " timed out!"
+        echo "Server did not become ready within 60s. Check the container." >&2
+        exit 1
+    fi
+done
+
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "[ 1 ] GET /api/tv/v1/home"

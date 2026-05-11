@@ -30,7 +30,10 @@ public record HomeResponseDto(
     WatchingNowDto watching_now
 );
 
-public record WatchingNowDto(bool enabled, IReadOnlyList<object> items);
+public record WatchingNowDto(
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.Never)] bool enabled,
+    IReadOnlyList<object> items
+);
 
 public record PagedMediaResponseDto(
     string feed,
@@ -67,10 +70,10 @@ public record ProviderItemDto(
     string code,
     string name,
     string url,
-    [property: Newtonsoft.Json.JsonProperty(DefaultValueHandling = Newtonsoft.Json.DefaultValueHandling.Include)] int priority,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.Never)] int priority,
     bool available,
-    [property: Newtonsoft.Json.JsonProperty(DefaultValueHandling = Newtonsoft.Json.DefaultValueHandling.Include)] bool supports_series,
-    [property: Newtonsoft.Json.JsonProperty(DefaultValueHandling = Newtonsoft.Json.DefaultValueHandling.Include)] bool supports_movie
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.Never)] bool supports_series,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.Never)] bool supports_movie
 );
 
 public record ProviderOptionsResponseDto(
