@@ -352,22 +352,8 @@ public class ProviderOptionsService
                 {
                     string status = (daysUntil ?? 0) > 0 ? "upcoming" : "unavailable";
                     string name = tmdbEp.Value<string>("name") ?? $"Episode {epNum}";
-
-                    episodeOptions.Add(new EpisodeOptionDto(
-                        selectedSeason,
-                        epNum,
-                        name,
-                        name,
-                        status,
-                        airDate,
-                        daysUntil,
-                        Array.Empty<string>(),
-                        string.Empty,
-                        string.Empty,
-                        Array.Empty<SubtitleOptionDto>(),
-                        null
-                    ));
-
+                    // Keep TMDB-only entries in planned list; do not expose as
+                    // playable episode options to avoid false-positive selection.
                     planned.Add(new PlannedEpisodeDto(selectedSeason, epNum, name, airDate, daysUntil, status));
                 }
             }

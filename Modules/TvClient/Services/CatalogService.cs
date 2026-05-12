@@ -174,7 +174,7 @@ public class CatalogService
         );
     }
 
-    public async Task<(ProviderContext context, JObject detail)> GetTitleContext(string media, long tmdbId, string lang)
+    public virtual async Task<(ProviderContext context, JObject detail)> GetTitleContext(string media, long tmdbId, string lang)
     {
         string m = string.Equals(media, "tv", StringComparison.OrdinalIgnoreCase) ? "tv" : "movie";
         string apiKey = CoreInit.conf?.cub?.api_key;
@@ -261,7 +261,7 @@ public class CatalogService
         );
     }
 
-    public async Task<JObject> GetTvSeason(long tmdbId, int season, string lang)
+    public virtual async Task<JObject> GetTvSeason(long tmdbId, int season, string lang)
     {
         string apiKey = CoreInit.conf?.cub?.api_key;
         string language = DefaultLang(lang);

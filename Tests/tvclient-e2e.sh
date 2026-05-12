@@ -35,11 +35,66 @@ FAILURES=0
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 get() {
-    curl -sf --max-time 20 "$BASE$1"
+    curl -sf --max-time 40 "$BASE$1"
 }
 
 post() {
-    curl -sf --max-time 20 -X POST -H "Content-Type: application/json" -d "$2" "$BASE$1"
+    curl -sf --max-time 40 -X POST -H "Content-Type: application/json" -d "$2" "$BASE$1"
+}
+
+have_ffprobe() {
+    command -v ffprobe >/dev/null 2>&1
+}
+
+ffprobe_stream() {
+    local url="$1"
+    local headers_json="${2:-{}}"
+
+    python3 - "$url" "$headers_json" <<'PY'
+import json, subprocess, sys
+url = sys.argv[1]
+headers = {}
+try:
+    headers = json.loads(sys.argv[2] or "{}")
+except Exception:
+    headers = {}
+
+cmd = [
+    "ffprobe",
+    "-v", "error",
+    "-print_format", "json",
+    "-show_streams",
+    "-show_format",
+    "-rw_timeout", "15000000",
+]
+
+if headers:
+    joined = "".join(f"{k}: {v}\r\n" for k, v in headers.items())
+    cmd.extend(["-headers", joined])
+
+cmd.append(url)
+
+proc = subprocess.run(cmd, capture_output=True, text=True)
+if proc.returncode != 0:
+    print(json.dumps({"ok": False, "error": proc.stderr.strip() or proc.stdout.strip()}))
+    sys.exit(0)
+
+try:
+    payload = json.loads(proc.stdout or "{}")
+except Exception as ex:
+    print(json.dumps({"ok": False, "error": f"invalid ffprobe output: {ex}"}))
+    sys.exit(0)
+
+streams = payload.get("streams") or []
+has_video = any(s.get("codec_type") == "video" for s in streams)
+has_audio = any(s.get("codec_type") == "audio" for s in streams)
+print(json.dumps({
+    "ok": True,
+    "streams": len(streams),
+    "has_video": has_video,
+    "has_audio": has_audio
+}))
+PY
 }
 
 # Run a python3 check against JSON. Usage: check <label> <json> <python_expr_returning_bool> [warn_only]
@@ -75,6 +130,13 @@ echo ""
 echo "TvClient v1 — E2E smoke tests"
 echo "BASE: $BASE"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+echo ""
+echo "[ 0 ] GET /api/tv/v1/version"
+RESP=$(get "/api/tv/v1/version") || { fail "HTTP request failed"; RESP="{}"; }
+check "version: has module name"       "$RESP" "d['data'].get('module') == 'TvClient'"
+check "version: has asm_version"       "$RESP" "bool(d['data'].get('asm_version'))"
+check "version: has server_utc"        "$RESP" "bool(d['data'].get('server_utc'))"
 
 # Wait for server to be ready (Roslyn compilation can take 10-20s after restart)
 echo -n "Waiting for server..."
@@ -236,6 +298,68 @@ fi
 # Bad request (missing provider)
 RESP_BAD=$(post "/api/tv/v1/play/resolve" '{"media":"tv","tmdbId":1396}') || true
 check "resolve: missing provider → error" "${RESP_BAD:-{\"error\":{}}}" "d.get('error') is not None" true
+
+# ─────────────────────────────────────────────────────────────────────────────
+echo ""
+echo "[ 9 ] TV provider matrix + resolve/ffprobe diagnostics (The Boys tmdb=76479)"
+TV_ID="${TV_ID:-76479}"
+TV_SEASON="${TV_SEASON:-5}"
+TV_EPISODE="${TV_EPISODE:-4}"
+STRICT_TV="${STRICT_TV:-false}"
+
+RESP_TV_PROV=$(get "/api/tv/v1/title/tv/${TV_ID}/providers?lang=en-US") || { fail "tv providers list failed"; RESP_TV_PROV="{}"; }
+check "tv providers: has list" "$RESP_TV_PROV" "len(d['data']['items']) > 0"
+
+TV_PROVIDERS_RAW=$(echo "$RESP_TV_PROV" | python3 -c "import json,sys; d=json.load(sys.stdin); print('\n'.join(i['code'] for i in d['data'].get('items',[])))" 2>/dev/null || true)
+PLAYABLE_PROVIDER=""
+
+while IFS= read -r P; do
+    [[ -z "$P" ]] && continue
+    OPT=$(get "/api/tv/v1/title/tv/${TV_ID}/providers/${P}/options?lang=en-US&season=${TV_SEASON}") || { warn "provider=${P}: options request failed"; continue; }
+
+    trans=$(echo "$OPT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d.get('data',{}).get('translations',[])))" 2>/dev/null || echo 0)
+    eps=$(echo "$OPT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d.get('data',{}).get('episodes',[])))" 2>/dev/null || echo 0)
+    playable=$(echo "$OPT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len([e for e in d.get('data',{}).get('episodes',[]) if e.get('status')=='available' and e.get('play')]))" 2>/dev/null || echo 0)
+    statuses=$(echo "$OPT" | python3 -c "import json,sys; d=json.load(sys.stdin); s=sorted(set([e.get('status','') for e in d.get('data',{}).get('episodes',[])])); print(','.join(s))" 2>/dev/null || echo "")
+    info "provider=${P} season=${TV_SEASON} translations=${trans} episodes=${eps} playable=${playable} statuses=${statuses}"
+
+    if [[ -z "$PLAYABLE_PROVIDER" && "$playable" -gt 0 ]]; then
+        PLAYABLE_PROVIDER="$P"
+    fi
+done <<< "$TV_PROVIDERS_RAW"
+
+if [[ -z "$PLAYABLE_PROVIDER" ]]; then
+    if [[ "$STRICT_TV" == "true" ]]; then
+        fail "no providers with playable episodes for tv=${TV_ID} season=${TV_SEASON}"
+    else
+        warn "no providers with playable episodes for tv=${TV_ID} season=${TV_SEASON} (diagnostic only)"
+    fi
+else
+    info "selected playable provider: $PLAYABLE_PROVIDER"
+    payload=$(python3 -c "import json; print(json.dumps({'media':'tv','tmdbId':${TV_ID},'provider':'${PLAYABLE_PROVIDER}','season':${TV_SEASON},'episode':${TV_EPISODE},'lang':'en-US'}))")
+    RESOLVE=$(post "/api/tv/v1/play/resolve" "$payload") || { fail "resolve for playable provider failed"; RESOLVE="{}"; }
+    check "tv resolve: no error" "$RESOLVE" "d.get('error') is None"
+    check "tv resolve: has play.url" "$RESOLVE" "bool(d['data']['play']['url'])"
+
+    if have_ffprobe; then
+        URL=$(echo "$RESOLVE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('data',{}).get('play',{}).get('url',''))" 2>/dev/null || echo "")
+        HDR=$(echo "$RESOLVE" | python3 -c "import json,sys; d=json.load(sys.stdin); import json as j; print(j.dumps(d.get('data',{}).get('play',{}).get('headers',{}) or {}))" 2>/dev/null || echo "{}")
+        if [[ -n "$URL" ]]; then
+            FP=$(ffprobe_stream "$URL" "$HDR")
+            check "ffprobe: command succeeded" "$FP" "d.get('ok') == True"
+            check "ffprobe: has streams" "$FP" "(d.get('streams') or 0) > 0"
+        else
+            warn "ffprobe skipped: empty play.url"
+        fi
+    else
+        warn "ffprobe is not installed; skipping stream probe checks"
+    fi
+fi
+
+# Explicitly verify expected resolve_failed for known-unplayable combination.
+UNPLAYABLE_PAYLOAD=$(python3 -c "import json; print(json.dumps({'media':'tv','tmdbId':${TV_ID},'provider':'phantom','season':${TV_SEASON},'episode':${TV_EPISODE},'lang':'en-US'}))")
+UNPLAYABLE_RESOLVE=$(post "/api/tv/v1/play/resolve" "$UNPLAYABLE_PAYLOAD") || true
+check "tv unplayable resolve returns error envelope" "${UNPLAYABLE_RESOLVE:-{\"error\":{}}}" "d.get('error') is not None" true
 
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""

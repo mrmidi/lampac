@@ -1,5 +1,6 @@
 using TvClient.Models;
 using TvClient.Services;
+using System.Reflection;
 
 namespace TvClient.Controllers;
 
@@ -26,6 +27,34 @@ public class TvClientController : BaseController
 
     static string NormalizeMedia(string media)
         => string.Equals(media, "tv", StringComparison.OrdinalIgnoreCase) ? "tv" : "movie";
+
+    [HttpGet]
+    [Route("api/tv/v1/version")]
+    public ActionResult Version()
+    {
+        var asm = typeof(TvClientController).Assembly;
+        string asmVersion = asm.GetName().Version?.ToString() ?? "unknown";
+        string fileVersion = asm.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version ?? "unknown";
+        string informational = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? string.Empty;
+
+        string modPath = ModInit.modpath ?? string.Empty;
+        string manifestPath = string.IsNullOrWhiteSpace(modPath) ? string.Empty : Path.Combine(modPath, "manifest.json");
+        string manifestUtc = string.Empty;
+        if (!string.IsNullOrWhiteSpace(manifestPath) && System.IO.File.Exists(manifestPath))
+            manifestUtc = System.IO.File.GetLastWriteTimeUtc(manifestPath).ToString("O");
+
+        return OkEnvelope(new
+        {
+            module = "TvClient",
+            asm_version = asmVersion,
+            file_version = fileVersion,
+            informational_version = informational,
+            mod_path = modPath,
+            manifest_path = manifestPath,
+            manifest_utc = manifestUtc,
+            server_utc = DateTime.UtcNow.ToString("O")
+        });
+    }
 
     [HttpGet]
     [Route("api/tv/v1/home")]

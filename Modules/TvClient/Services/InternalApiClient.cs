@@ -24,7 +24,7 @@ public class InternalApiClient
             ("xscheme", _scheme)
         );
 
-    public string BuildAuthQuery()
+    public virtual string BuildAuthQuery()
     {
         var qs = new List<string>(5);
 
@@ -43,7 +43,7 @@ public class InternalApiClient
         return string.Join("&", qs);
     }
 
-    public async Task<JToken> GetJsonToken(string pathAndQuery, int timeoutSec = 15, bool statusCodeOK = true)
+    public virtual async Task<JToken> GetJsonToken(string pathAndQuery, int timeoutSec = 15, bool statusCodeOK = true)
     {
         string url = pathAndQuery.StartsWith("http", StringComparison.OrdinalIgnoreCase)
             ? pathAndQuery
@@ -63,7 +63,7 @@ public class InternalApiClient
         }
     }
 
-    public async Task<string> GetRaw(string pathAndQuery, int timeoutSec = 15, bool statusCodeOK = true)
+    public virtual async Task<string> GetRaw(string pathAndQuery, int timeoutSec = 15, bool statusCodeOK = true)
     {
         string url = pathAndQuery.StartsWith("http", StringComparison.OrdinalIgnoreCase)
             ? pathAndQuery

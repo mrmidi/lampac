@@ -51,7 +51,9 @@ public class ProviderDiscoveryService
             $"&original_title={HttpUtility.UrlEncode(context.original_title ?? string.Empty)}" +
             $"&original_language={HttpUtility.UrlEncode(context.original_language ?? string.Empty)}" +
             $"&year={context.year}" +
-            $"&serial={(context.serial ? 1 : 0)}";
+            $"&serial={(context.serial ? 1 : 0)}" +
+            "&source=tmdb" +
+            "&islite=true";
 
         if (!string.IsNullOrWhiteSpace(auth))
             contextSuffix += "&" + auth;
