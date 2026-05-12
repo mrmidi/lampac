@@ -71,6 +71,7 @@ public class TvClientController : BaseController
     ProviderOptionsResponseDto WrapOptionsPlayStrict(ProviderOptionsResponseDto input, out bool ok, out string proxyMode)
     {
         ok = true;
+        bool localOk = true;
         proxyMode = "proxy";
         if (input == null)
             return input;
@@ -83,7 +84,7 @@ public class TvClientController : BaseController
             string wrapped = WrapProxyUrlStrict(ep.play.url, ep.play.headers, out _);
             if (string.IsNullOrWhiteSpace(wrapped))
             {
-                ok = false;
+                localOk = false;
                 return ep;
             }
 
@@ -105,7 +106,7 @@ public class TvClientController : BaseController
             string wrapped = WrapProxyUrlStrict(ms.play.url, ms.play.headers, out _);
             if (string.IsNullOrWhiteSpace(wrapped))
             {
-                ok = false;
+                localOk = false;
                 return ms;
             }
 
@@ -118,6 +119,8 @@ public class TvClientController : BaseController
                 }
             };
         }).ToArray();
+
+        ok = localOk;
 
         return input with
         {

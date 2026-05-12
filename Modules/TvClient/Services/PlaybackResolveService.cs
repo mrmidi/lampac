@@ -20,12 +20,12 @@ public class PlaybackResolveService
         string media = string.Equals(request.media, "tv", StringComparison.OrdinalIgnoreCase) ? "tv" : "movie";
 
         if (media == "movie")
-            return ResolveMovie(request, options);
+            return ResolveMovie(request, snapshot, options);
 
-        return ResolveSeries(request, options);
+        return ResolveSeries(request, snapshot, options);
     }
 
-    PlayResolveResponseDto ResolveMovie(PlayResolveRequestDto request, ProviderOptionsResponseDto options)
+    PlayResolveResponseDto ResolveMovie(PlayResolveRequestDto request, ProviderOptionsSnapshot snapshot, ProviderOptionsResponseDto options)
     {
         var streams = options.movie_streams?.ToList() ?? new List<MovieStreamOptionDto>();
         if (streams.Count == 0)
@@ -67,7 +67,7 @@ public class PlaybackResolveService
         );
     }
 
-    PlayResolveResponseDto ResolveSeries(PlayResolveRequestDto request, ProviderOptionsResponseDto options)
+    PlayResolveResponseDto ResolveSeries(PlayResolveRequestDto request, ProviderOptionsSnapshot snapshot, ProviderOptionsResponseDto options)
     {
         int season = request.season.GetValueOrDefault(options.selected_season > 0 ? options.selected_season : 1);
         string selectedTranslationId = SelectTranslation(request.translation, options.translations);
