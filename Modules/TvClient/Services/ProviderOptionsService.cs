@@ -260,9 +260,10 @@ public class ProviderOptionsService
         // Try this deterministic path first to avoid stale/empty season-link payloads.
         if (!string.IsNullOrWhiteSpace(providerUrl))
         {
-            string seasonDirectUrl = BuildSeasonDirectUrl(providerUrl, context, selectedSeason, requestedTranslation);
+            string requestedTranslationToken = ResolveRequestedTranslationToken(requestedTranslation, root.Voices);
+            string seasonDirectUrl = BuildSeasonDirectUrl(providerUrl, context, selectedSeason, requestedTranslationToken);
             Serilog.Log.Information("TvClient upstream provider season-direct [provider: {Provider}] [season: {Season}] [translation: {Translation}] [url: {Url}]",
-                provider, selectedSeason, requestedTranslation ?? string.Empty, seasonDirectUrl);
+                provider, selectedSeason, requestedTranslationToken ?? string.Empty, seasonDirectUrl);
 
             string seasonDirectRaw = await _api.GetRaw(seasonDirectUrl, timeoutSec: timeoutSec, statusCodeOK: false);
             var seasonDirectPayload = _normalizer.Parse(seasonDirectRaw);
@@ -547,5 +548,24 @@ public class ProviderOptionsService
 
         string enriched = _parity.AppendMissingParams(pathAndQuery, map);
         return _parity.EnsureRjson(enriched);
+    }
+
+    static string ResolveRequestedTranslationToken(string requestedTranslation, IReadOnlyList<NormalizedVoice> voices)
+    {
+        if (string.IsNullOrWhiteSpace(requestedTranslation))
+            return string.Empty;
+
+        string requested = requestedTranslation.Trim();
+        if (voices == null || voices.Count == 0)
+            return requested;
+
+        var match = voices.FirstOrDefault(v =>
+            requested.Equals(v.id, StringComparison.OrdinalIgnoreCase) ||
+            requested.Equals(v.name, StringComparison.OrdinalIgnoreCase));
+
+        if (match == null)
+            return requested;
+
+        return string.IsNullOrWhiteSpace(match.id) ? requested : match.id;
     }
 }
