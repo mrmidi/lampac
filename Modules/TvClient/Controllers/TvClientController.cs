@@ -38,6 +38,27 @@ public class TvClientController : BaseController
     static bool IsProxyUrl(string url)
         => !string.IsNullOrWhiteSpace(url) && url.Contains("/proxy/", StringComparison.OrdinalIgnoreCase);
 
+    string NormalizeProxyTarget(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return string.Empty;
+
+        if (url.StartsWith("/"))
+            return $"http://{CoreInit.conf.listen.localhost}:{CoreInit.conf.listen.port}{url}";
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return url;
+
+        string requestHost = HttpContext?.Request?.Host.Host ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(requestHost))
+            return url;
+
+        if (!uri.Host.Equals(requestHost, StringComparison.OrdinalIgnoreCase))
+            return url;
+
+        return $"http://{CoreInit.conf.listen.localhost}:{CoreInit.conf.listen.port}{uri.PathAndQuery}";
+    }
+
     string WrapProxyUrlStrict(string url, IReadOnlyDictionary<string, string> headers, out string proxyMode)
     {
         proxyMode = "proxy";
@@ -53,7 +74,8 @@ public class TvClientController : BaseController
             streamproxy = true
         };
 
-        string wrapped = HostStreamProxy(conf, url, HeadersModel.Init(headers ?? new Dictionary<string, string>()), proxy: null, force_streamproxy: true, rch: null);
+        string target = NormalizeProxyTarget(url);
+        string wrapped = HostStreamProxy(conf, target, HeadersModel.Init(headers ?? new Dictionary<string, string>()), proxy: null, force_streamproxy: true, rch: null);
         if (!IsProxyUrl(wrapped))
             return string.Empty;
 

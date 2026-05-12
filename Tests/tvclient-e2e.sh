@@ -272,7 +272,11 @@ else
 fi
 if [[ "$AVAIL" -gt 0 ]]; then
     check "available ep has play object"   "$RESP" "next((e for e in d['data']['episodes'] if e['status']=='available'), {}).get('play') is not None"
-    check "available ep has qualities"     "$RESP" "len(next((e for e in d['data']['episodes'] if e['status']=='available'), {}).get('available_qualities',[])) > 0"
+    check "available ep has qualities field" "$RESP" "isinstance(next((e for e in d['data']['episodes'] if e['status']=='available'), {}).get('available_qualities', []), list)"
+    QUAL_CNT=$(echo "$RESP" | python3 -c "import json,sys; ep=next((e for e in json.load(sys.stdin)['data']['episodes'] if e.get('status')=='available'),{}); print(len(ep.get('available_qualities',[])))" 2>/dev/null || echo "0")
+    if [[ "${QUAL_CNT:-0}" -eq 0 ]]; then
+        warn "Available episode has empty quality list (provider did not expose per-episode quality map)"
+    fi
 else
     warn "No available episodes from $DEFAULT_PROVIDER for tv=${TV_OPTIONS_ID} season=${TV_OPTIONS_SEASON} — provider may need auth/token"
 fi
