@@ -11,19 +11,15 @@ public class ProviderServicesTests
     sealed class FakeInternalApiClient : InternalApiClient
     {
         readonly JToken _events;
-        readonly string _authQuery;
         readonly string _rawPayload;
         public readonly List<string> RequestedPaths = new();
 
-        public FakeInternalApiClient(JToken events, string authQuery = "", string rawPayload = "")
-            : base("localhost", "http", new AuthContext("", "", "", "", ""))
+        public FakeInternalApiClient(JToken events, AuthContext auth = null, string rawPayload = "")
+            : base("localhost", "http", auth ?? new AuthContext("", "", "", "", ""))
         {
             _events = events;
-            _authQuery = authQuery;
             _rawPayload = rawPayload;
         }
-
-        public override string BuildAuthQuery() => _authQuery;
 
         public override Task<JToken> GetJsonToken(string pathAndQuery, int timeoutSec = 15, bool statusCodeOK = true)
         {
@@ -65,9 +61,9 @@ public class ProviderServicesTests
         ]
         """);
 
-        var api = new FakeInternalApiClient(events, "uid=42");
+        var api = new FakeInternalApiClient(events, new AuthContext("u@mail.test", "42", "tok", "nws", "p1"));
         var svc = new ProviderDiscoveryService(api);
-        var ctx = new ProviderContext("tv", 76479, "The Boys", "The Boys", "en", 2019, "tt1190634", "111", true);
+        var ctx = new ProviderContext("tv", 76479, "cub", "web", "The Boys", "The Boys", "en", 2019, "tt1190634", "111", true);
 
         var result = await svc.Discover(ctx);
 
@@ -77,9 +73,13 @@ public class ProviderServicesTests
         string url = result.provider_urls["phantom"];
         Assert.Contains("id=76479", url);
         Assert.Contains("serial=1", url);
-        Assert.Contains("source=tmdb", url);
+        Assert.Contains("source=cub", url);
         Assert.Contains("islite=true", url);
         Assert.Contains("uid=42", url);
+        Assert.Contains("token=tok", url);
+        Assert.Contains("nws_id=nws", url);
+        Assert.Contains("profile_id=p1", url);
+        Assert.Contains("cub_id=", url);
     }
 
     [Fact]
@@ -115,11 +115,11 @@ public class ProviderServicesTests
         }
         """);
 
-        var api = new FakeInternalApiClient(JValue.CreateNull(), rawPayload: seasonPayload);
+        var api = new FakeInternalApiClient(JValue.CreateNull(), new AuthContext("u@mail.test", "42", "tok", "nws", "p1"), rawPayload: seasonPayload);
         var catalog = new FakeCatalogService(api, tmdbSeason);
         var normalizer = new ProviderResponseNormalizer();
         var svc = new ProviderOptionsService(api, catalog, normalizer);
-        var context = new ProviderContext("tv", 76479, "The Boys", "The Boys", "en", 2019, "tt1190634", "111", true);
+        var context = new ProviderContext("tv", 76479, "cub", "web", "The Boys", "The Boys", "en", 2019, "tt1190634", "111", true);
         var detail = JObject.Parse("""
         {
           "seasons":[

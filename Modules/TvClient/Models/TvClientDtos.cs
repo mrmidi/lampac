@@ -144,6 +144,7 @@ public record SelectionDto(
 public record PlayResolveRequestDto(
     string media,
     long tmdbId,
+    string source,
     string provider,
     int? season,
     int? episode,
@@ -155,6 +156,17 @@ public record PlayResolveRequestDto(
     string token,
     string nws_id,
     string profile_id
+);
+
+public record UpstreamParityDebugDto(
+    long tmdb_id,
+    string media,
+    string source,
+    string provider,
+    string events_query,
+    string provider_url_internal,
+    string provider_url_rjson,
+    IReadOnlyDictionary<string, bool> auth_flags
 );
 
 public record PlayResolveResponseDto(

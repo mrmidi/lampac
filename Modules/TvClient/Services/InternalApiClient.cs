@@ -7,6 +7,7 @@ public class InternalApiClient
     readonly string _host;
     readonly string _scheme;
     readonly AuthContext _auth;
+    public AuthContext Auth => _auth;
 
     public InternalApiClient(string host, string scheme, AuthContext auth)
     {

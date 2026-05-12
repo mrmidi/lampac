@@ -5,6 +5,7 @@ namespace TvClient.Services;
 public class ProviderDiscoveryService
 {
     readonly InternalApiClient _api;
+    readonly UpstreamParityContextBuilder _parity = new();
 
     public ProviderDiscoveryService(InternalApiClient api)
     {
@@ -19,23 +20,12 @@ public class ProviderDiscoveryService
 
         var conf = ModInit.conf;
         int timeoutSec = conf?.providers_timeout_sec ?? 15;
-        string auth = _api.BuildAuthQuery();
-        string q =
-            $"id={context.tmdb_id}" +
-            $"&imdb_id={HttpUtility.UrlEncode(context.imdb_id ?? string.Empty)}" +
-            $"&kinopoisk_id={HttpUtility.UrlEncode(context.kinopoisk_id ?? "0")}" +
-            $"&title={HttpUtility.UrlEncode(context.title ?? string.Empty)}" +
-            $"&original_title={HttpUtility.UrlEncode(context.original_title ?? string.Empty)}" +
-            $"&original_language={HttpUtility.UrlEncode(context.original_language ?? string.Empty)}" +
-            $"&year={context.year}" +
-            $"&source=tmdb" +
-            $"&serial={(context.serial ? 1 : 0)}" +
-            "&islite=true";
+        string q = _parity.BuildEventsQuery(context, _api.Auth);
+        string eventsPath = $"/lite/events?{q}";
+        Serilog.Log.Information("TvClient upstream events [source: {Source}] [serial: {Serial}] [tmdb_id: {TmdbId}] [has_auth: {HasAuth}] [path: {Path}]",
+            _parity.NormalizeSource(context.source), context.serial ? 1 : 0, context.tmdb_id, _parity.AuthFlags(_api.Auth).Values.Any(v => v), eventsPath);
 
-        if (!string.IsNullOrWhiteSpace(auth))
-            q += "&" + auth;
-
-        var token = await _api.GetJsonToken($"/lite/events?{q}", timeoutSec: timeoutSec, statusCodeOK: false);
+        var token = await _api.GetJsonToken(eventsPath, timeoutSec: timeoutSec, statusCodeOK: false);
         if (token is not JArray arr || arr.Count == 0)
             return empty;
 
@@ -43,22 +33,7 @@ public class ProviderDiscoveryService
             .Select((v, i) => (v: v.ToLowerInvariant(), i))
             .ToDictionary(x => x.v, x => x.i);
 
-        // Context params appended to each provider URL so provider controllers
-        // know which title to serve (bare event URLs lack these).
-        string contextSuffix =
-            $"id={context.tmdb_id}" +
-            $"&imdb_id={HttpUtility.UrlEncode(context.imdb_id ?? string.Empty)}" +
-            $"&kinopoisk_id={HttpUtility.UrlEncode(context.kinopoisk_id ?? "0")}" +
-            $"&title={HttpUtility.UrlEncode(context.title ?? string.Empty)}" +
-            $"&original_title={HttpUtility.UrlEncode(context.original_title ?? string.Empty)}" +
-            $"&original_language={HttpUtility.UrlEncode(context.original_language ?? string.Empty)}" +
-            $"&year={context.year}" +
-            $"&serial={(context.serial ? 1 : 0)}" +
-            "&source=tmdb" +
-            "&islite=true";
-
-        if (!string.IsNullOrWhiteSpace(auth))
-            contextSuffix += "&" + auth;
+        var contextMap = _parity.BuildContextMap(context, _api.Auth);
 
         var providerUrls = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var providers = new List<ProviderItemDto>(arr.Count);
@@ -76,9 +51,7 @@ public class ProviderDiscoveryService
             string pathAndQuery = Uri.TryCreate(url, UriKind.Absolute, out var uri)
                 ? uri.PathAndQuery
                 : url;
-            string internalUrl = pathAndQuery.Contains('?')
-                ? $"{pathAndQuery}&{contextSuffix}"
-                : $"{pathAndQuery}?{contextSuffix}";
+            string internalUrl = _parity.AppendMissingParams(pathAndQuery, contextMap);
             providerUrls[code] = internalUrl;
 
             int priority = order.TryGetValue(code, out int idx)

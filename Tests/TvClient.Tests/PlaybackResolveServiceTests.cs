@@ -34,7 +34,7 @@ public class PlaybackResolveServiceTests
         {
             Response = options,
             Provider = "phantom",
-            Context = new ProviderContext(media, 1, "T", "T", "en", 2022, "tt1", "1", media == "tv")
+            Context = new ProviderContext(media, 1, "tmdb", "", "T", "T", "en", 2022, "tt1", "1", media == "tv")
         };
     }
 
@@ -48,7 +48,7 @@ public class PlaybackResolveServiceTests
         });
 
         var svc = new PlaybackResolveService();
-        var res = svc.Resolve(new PlayResolveRequestDto("tv", 1, "phantom", 1, 1, "lf", "1080p", "en-US", null, null, null, null, null), snapshot);
+        var res = svc.Resolve(new PlayResolveRequestDto("tv", 1, "tmdb", "phantom", 1, 1, "lf", "1080p", "en-US", null, null, null, null, null), snapshot);
 
         Assert.NotNull(res);
         Assert.Equal(1, res.selected.episode);
@@ -67,7 +67,7 @@ public class PlaybackResolveServiceTests
         });
 
         var svc = new PlaybackResolveService();
-        var res = svc.Resolve(new PlayResolveRequestDto("tv", 1, "phantom", 1, null, null, null, "en-US", null, null, null, null, null), snapshot);
+        var res = svc.Resolve(new PlayResolveRequestDto("tv", 1, "tmdb", "phantom", 1, null, null, null, "en-US", null, null, null, null, null), snapshot);
 
         Assert.NotNull(res);
         Assert.Equal(1, res.selected.episode);
@@ -84,7 +84,7 @@ public class PlaybackResolveServiceTests
         });
 
         var svc = new PlaybackResolveService();
-        var res = svc.Resolve(new PlayResolveRequestDto("tv", 1, "phantom", 1, null, null, null, "en-US", null, null, null, null, null), snapshot);
+        var res = svc.Resolve(new PlayResolveRequestDto("tv", 1, "tmdb", "phantom", 1, null, null, null, "en-US", null, null, null, null, null), snapshot);
 
         Assert.Null(res);
     }
@@ -104,7 +104,7 @@ public class PlaybackResolveServiceTests
         }, translations: translations);
 
         var svc = new PlaybackResolveService();
-        var res = svc.Resolve(new PlayResolveRequestDto("tv", 1, "phantom", 1, 1, "nonexistent", null, "en-US", null, null, null, null, null), snapshot);
+        var res = svc.Resolve(new PlayResolveRequestDto("tv", 1, "tmdb", "phantom", 1, 1, "nonexistent", null, "en-US", null, null, null, null, null), snapshot);
 
         Assert.NotNull(res);
         Assert.Equal("kub", res.selected.translation_id);
@@ -121,7 +121,7 @@ public class PlaybackResolveServiceTests
         });
 
         var svc = new PlaybackResolveService();
-        var res = svc.Resolve(new PlayResolveRequestDto("tv", 1, "phantom", 1, 1, null, null, "en-US", null, null, null, null, null), snapshot);
+        var res = svc.Resolve(new PlayResolveRequestDto("tv", 1, "tmdb", "phantom", 1, 1, null, null, "en-US", null, null, null, null, null), snapshot);
 
         Assert.NotNull(res);
         Assert.All(res.up_next, q => Assert.Equal(1, q.season));
@@ -149,11 +149,11 @@ public class PlaybackResolveServiceTests
         {
             Response = options,
             Provider = "phantom",
-            Context = new ProviderContext("movie", 1, "T", "T", "en", 2022, "tt1", "1", false)
+            Context = new ProviderContext("movie", 1, "tmdb", "", "T", "T", "en", 2022, "tt1", "1", false)
         };
 
         var svc = new PlaybackResolveService();
-        var res = svc.Resolve(new PlayResolveRequestDto("movie", 1, "phantom", null, null, null, null, "en-US", null, null, null, null, null), snapshot);
+        var res = svc.Resolve(new PlayResolveRequestDto("movie", 1, "tmdb", "phantom", null, null, null, null, "en-US", null, null, null, null, null), snapshot);
 
         Assert.NotNull(res);
         Assert.Equal("movie", res.media);
@@ -179,11 +179,11 @@ public class PlaybackResolveServiceTests
         {
             Response = options,
             Provider = "phantom",
-            Context = new ProviderContext("movie", 1, "T", "T", "en", 2022, "tt1", "1", false)
+            Context = new ProviderContext("movie", 1, "tmdb", "", "T", "T", "en", 2022, "tt1", "1", false)
         };
 
         var svc = new PlaybackResolveService();
-        var res = svc.Resolve(new PlayResolveRequestDto("movie", 1, "phantom", null, null, null, null, "en-US", null, null, null, null, null), snapshot);
+        var res = svc.Resolve(new PlayResolveRequestDto("movie", 1, "tmdb", "phantom", null, null, null, null, "en-US", null, null, null, null, null), snapshot);
 
         Assert.Null(res);
     }
@@ -192,7 +192,7 @@ public class PlaybackResolveServiceTests
     public void Resolve_WithNullSnapshot_ShouldReturnNull()
     {
         var svc = new PlaybackResolveService();
-        Assert.Null(svc.Resolve(new PlayResolveRequestDto("tv", 1, "phantom", 1, 1, null, null, "en-US", null, null, null, null, null), null));
+        Assert.Null(svc.Resolve(new PlayResolveRequestDto("tv", 1, "tmdb", "phantom", 1, 1, null, null, "en-US", null, null, null, null, null), null));
     }
 
     [Fact]
@@ -204,7 +204,7 @@ public class PlaybackResolveServiceTests
         });
 
         var svc = new PlaybackResolveService(_ => null);
-        var res = svc.Resolve(new PlayResolveRequestDto("tv", 1, "phantom", 1, 1, null, null, "en-US", null, null, null, null, null), snapshot);
+        var res = svc.Resolve(new PlayResolveRequestDto("tv", 1, "tmdb", "phantom", 1, 1, null, null, "en-US", null, null, null, null, null), snapshot);
 
         Assert.Null(res);
     }

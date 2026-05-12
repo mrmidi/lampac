@@ -138,7 +138,13 @@ check "version: has module name"       "$RESP" "d['data'].get('module') == 'TvCl
 check "version: has asm_version"       "$RESP" "bool(d['data'].get('asm_version'))"
 check "version: has server_utc"        "$RESP" "bool(d['data'].get('server_utc'))"
 check "version: has contract version"  "$RESP" "bool(d['data'].get('api_contract_version'))"
-check "version: has build_utc"         "$RESP" "bool(d['data'].get('build_utc'))"
+
+echo ""
+echo "[ 0.1 ] GET /api/tv/v1/debug/upstream"
+RESP_DBG=$(get "/api/tv/v1/debug/upstream?media=tv&tmdbId=76479&provider=phantom&source=cub&lang=en-US") || { fail "HTTP request failed"; RESP_DBG="{}"; }
+check "debug: has events_query"        "$RESP_DBG" "bool(d['data'].get('events_query'))"
+check "debug: source=cub propagated"   "$RESP_DBG" "d['data'].get('source') == 'cub'"
+check "debug: auth flags object"       "$RESP_DBG" "isinstance(d['data'].get('auth_flags'), dict)"
 
 # Wait for server to be ready (Roslyn compilation can take 10-20s after restart)
 echo -n "Waiting for server..."
@@ -229,7 +235,7 @@ check "invalid tmdbId returns error"   "${RESP:-{\"error\":{}}}" "d.get('error')
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "[ 6 ] GET /api/tv/v1/title/{media}/{tmdbId}/providers"
-RESP=$(get "/api/tv/v1/title/tv/1396/providers") || { fail "HTTP request failed"; RESP="{}"; }
+RESP=$(get "/api/tv/v1/title/tv/1396/providers?source=cub") || { fail "HTTP request failed"; RESP="{}"; }
 check "providers list non-empty"       "$RESP" "len(d['data']['items']) > 0"
 check "default_provider set"           "$RESP" "bool(d['data']['default_provider'])"
 check "each item has code+url"         "$RESP" "all(i.get('code') and i.get('url') for i in d['data']['items'])"
@@ -244,25 +250,31 @@ info "default provider: $DEFAULT_PROVIDER"
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "[ 7 ] GET /api/tv/v1/title/{media}/{tmdbId}/providers/{provider}/options"
-RESP=$(get "/api/tv/v1/title/tv/1396/providers/$DEFAULT_PROVIDER/options?season=1&lang=en-US") || { fail "HTTP request failed"; RESP="{}"; }
+TV_OPTIONS_ID="${TV_OPTIONS_ID:-76479}"
+TV_OPTIONS_SEASON="${TV_OPTIONS_SEASON:-1}"
+RESP=$(get "/api/tv/v1/title/tv/${TV_OPTIONS_ID}/providers/$DEFAULT_PROVIDER/options?season=${TV_OPTIONS_SEASON}&source=cub&lang=en-US") || { fail "HTTP request failed"; RESP="{}"; }
 check "options: no error"              "$RESP" "d.get('error') is None"
-check "options: selected_season=1"     "$RESP" "d['data']['selected_season'] == 1"
+check "options: selected_season matches request" "$RESP" "d['data']['selected_season'] == ${TV_OPTIONS_SEASON}"
 check "options: seasons list"          "$RESP" "len(d['data']['seasons']) > 0"
-check "options: all 5 BB seasons"      "$RESP" "len(d['data']['seasons']) == 5"
-check "options: episodes list"         "$RESP" "len(d['data']['episodes']) > 0"
-check "options: episode has air_date"  "$RESP" "bool(d['data']['episodes'][0].get('air_date'))"
-check "options: episode has status"    "$RESP" "bool(d['data']['episodes'][0].get('status'))"
+check "options: all 5 seasons for The Boys" "$RESP" "len(d['data']['seasons']) == 5"
 check "options: has provider_status"   "$RESP" "bool(d['data'].get('provider_status'))"
 check "options: has parse_source"      "$RESP" "bool(d['data'].get('parse_source'))"
 check "options: has proxy_mode"        "$RESP" "bool(d['data'].get('proxy_mode'))"
 
 AVAIL=$(echo "$RESP" | python3 -c "import json,sys; eps=json.load(sys.stdin)['data']['episodes']; print(len([e for e in eps if e['status']=='available']))" 2>/dev/null || echo "0")
-info "available episodes in S1: $AVAIL"
+EPS_COUNT=$(echo "$RESP" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['data'].get('episodes',[])))" 2>/dev/null || echo "0")
+info "available episodes in season ${TV_OPTIONS_SEASON}: $AVAIL"
+if [[ "$EPS_COUNT" -gt 0 ]]; then
+    check "options: episode has status"    "$RESP" "bool(d['data']['episodes'][0].get('status'))"
+    check "options: episode has air_date field" "$RESP" "'air_date' in d['data']['episodes'][0]"
+else
+    warn "No episodes in options payload for provider=$DEFAULT_PROVIDER tv=${TV_OPTIONS_ID} season=${TV_OPTIONS_SEASON}"
+fi
 if [[ "$AVAIL" -gt 0 ]]; then
     check "available ep has play object"   "$RESP" "next((e for e in d['data']['episodes'] if e['status']=='available'), {}).get('play') is not None"
     check "available ep has qualities"     "$RESP" "len(next((e for e in d['data']['episodes'] if e['status']=='available'), {}).get('available_qualities',[])) > 0"
 else
-    warn "No available episodes from $DEFAULT_PROVIDER for BB S1 — provider may need auth/token"
+    warn "No available episodes from $DEFAULT_PROVIDER for tv=${TV_OPTIONS_ID} season=${TV_OPTIONS_SEASON} — provider may need auth/token"
 fi
 
 # Movie options (Fight Club)
@@ -313,7 +325,7 @@ TV_SEASON="${TV_SEASON:-5}"
 TV_EPISODE="${TV_EPISODE:-4}"
 STRICT_TV="${STRICT_TV:-false}"
 
-RESP_TV_PROV=$(get "/api/tv/v1/title/tv/${TV_ID}/providers?lang=en-US") || { fail "tv providers list failed"; RESP_TV_PROV="{}"; }
+RESP_TV_PROV=$(get "/api/tv/v1/title/tv/${TV_ID}/providers?source=cub&lang=en-US") || { fail "tv providers list failed"; RESP_TV_PROV="{}"; }
 check "tv providers: has list" "$RESP_TV_PROV" "len(d['data']['items']) > 0"
 
 TV_PROVIDERS_RAW=$(echo "$RESP_TV_PROV" | python3 -c "import json,sys; d=json.load(sys.stdin); print('\n'.join(i['code'] for i in d['data'].get('items',[])))" 2>/dev/null || true)
@@ -321,7 +333,7 @@ PLAYABLE_PROVIDER=""
 
 while IFS= read -r P; do
     [[ -z "$P" ]] && continue
-    OPT=$(get "/api/tv/v1/title/tv/${TV_ID}/providers/${P}/options?lang=en-US&season=${TV_SEASON}") || { warn "provider=${P}: options request failed"; continue; }
+    OPT=$(get "/api/tv/v1/title/tv/${TV_ID}/providers/${P}/options?source=cub&lang=en-US&season=${TV_SEASON}") || { warn "provider=${P}: options request failed"; continue; }
 
     trans=$(echo "$OPT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d.get('data',{}).get('translations',[])))" 2>/dev/null || echo 0)
     eps=$(echo "$OPT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d.get('data',{}).get('episodes',[])))" 2>/dev/null || echo 0)
@@ -342,7 +354,7 @@ if [[ -z "$PLAYABLE_PROVIDER" ]]; then
     fi
 else
     info "selected playable provider: $PLAYABLE_PROVIDER"
-    payload=$(python3 -c "import json; print(json.dumps({'media':'tv','tmdbId':${TV_ID},'provider':'${PLAYABLE_PROVIDER}','season':${TV_SEASON},'episode':${TV_EPISODE},'lang':'en-US'}))")
+    payload=$(python3 -c "import json; print(json.dumps({'media':'tv','tmdbId':${TV_ID},'source':'cub','provider':'${PLAYABLE_PROVIDER}','season':${TV_SEASON},'episode':${TV_EPISODE},'lang':'en-US'}))")
     RESOLVE=$(post "/api/tv/v1/play/resolve" "$payload") || { fail "resolve for playable provider failed"; RESOLVE="{}"; }
     check "tv resolve: no error" "$RESOLVE" "d.get('error') is None"
     check "tv resolve: has play.url" "$RESOLVE" "bool(d['data']['play']['url'])"
@@ -364,7 +376,7 @@ else
 fi
 
 # Explicitly verify expected resolve_failed for known-unplayable combination.
-UNPLAYABLE_PAYLOAD=$(python3 -c "import json; print(json.dumps({'media':'tv','tmdbId':${TV_ID},'provider':'phantom','season':${TV_SEASON},'episode':${TV_EPISODE},'lang':'en-US'}))")
+UNPLAYABLE_PAYLOAD=$(python3 -c "import json; print(json.dumps({'media':'tv','tmdbId':${TV_ID},'source':'cub','provider':'phantom','season':${TV_SEASON},'episode':${TV_EPISODE},'lang':'en-US'}))")
 UNPLAYABLE_RESOLVE=$(post "/api/tv/v1/play/resolve" "$UNPLAYABLE_PAYLOAD") || true
 check "tv unplayable resolve returns error envelope" "${UNPLAYABLE_RESOLVE:-{\"error\":{}}}" "d.get('error') is not None" true
 

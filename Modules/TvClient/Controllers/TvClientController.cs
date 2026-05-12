@@ -8,6 +8,8 @@ namespace TvClient.Controllers;
 
 public class TvClientController : BaseController
 {
+    readonly UpstreamParityContextBuilder _parity = new();
+
     AuthContext ReadAuth() => new(
         HttpContext.Request.Query["account_email"],
         HttpContext.Request.Query["uid"],
@@ -15,6 +17,9 @@ public class TvClientController : BaseController
         HttpContext.Request.Query["nws_id"],
         HttpContext.Request.Query["profile_id"]
     );
+
+    string ReadRchType()
+        => HttpContext.Request.Query["rchtype"];
 
     JsonResult OkEnvelope<T>(T data)
         => Json(new ApiEnvelope<T>(data));
@@ -248,7 +253,7 @@ public class TvClientController : BaseController
 
     [HttpGet]
     [Route("api/tv/v1/title/{media}/{tmdbId:long}")]
-    public async Task<ActionResult> Title(string media, long tmdbId, string lang = "en-US")
+    public async Task<ActionResult> Title(string media, long tmdbId, string source = "tmdb", string lang = "en-US")
     {
         string m = NormalizeMedia(media);
 
@@ -258,7 +263,7 @@ public class TvClientController : BaseController
             var catalog = new CatalogService(api);
             var discovery = new ProviderDiscoveryService(api);
 
-            var (context, detail) = await catalog.GetTitleContext(m, tmdbId, lang);
+            var (context, detail) = await catalog.GetTitleContext(m, tmdbId, lang, source, ReadRchType());
             if (context == null || detail == null)
                 return ErrorEnvelope("title_not_found", "Title is not found", 404);
 
@@ -277,7 +282,7 @@ public class TvClientController : BaseController
 
     [HttpGet]
     [Route("api/tv/v1/title/{media}/{tmdbId:long}/providers")]
-    public async Task<ActionResult> Providers(string media, long tmdbId, string lang = "en-US")
+    public async Task<ActionResult> Providers(string media, long tmdbId, string source = "tmdb", string lang = "en-US")
     {
         string m = NormalizeMedia(media);
 
@@ -287,7 +292,7 @@ public class TvClientController : BaseController
             var catalog = new CatalogService(api);
             var discovery = new ProviderDiscoveryService(api);
 
-            var (context, _) = await catalog.GetTitleContext(m, tmdbId, lang);
+            var (context, _) = await catalog.GetTitleContext(m, tmdbId, lang, source, ReadRchType());
             if (context == null)
                 return ErrorEnvelope("title_not_found", "Title is not found", 404);
 
@@ -305,7 +310,7 @@ public class TvClientController : BaseController
 
     [HttpGet]
     [Route("api/tv/v1/title/{media}/{tmdbId:long}/providers/{provider}/options")]
-    public async Task<ActionResult> ProviderOptions(string media, long tmdbId, string provider, int season = 1, string translation = null, string quality = null, string lang = "en-US")
+    public async Task<ActionResult> ProviderOptions(string media, long tmdbId, string provider, int season = 1, string translation = null, string quality = null, string source = "tmdb", string lang = "en-US")
     {
         string m = NormalizeMedia(media);
 
@@ -317,7 +322,7 @@ public class TvClientController : BaseController
             var normalizer = new ProviderResponseNormalizer();
             var optionsSvc = new ProviderOptionsService(api, catalog, normalizer);
 
-            var (context, detail) = await catalog.GetTitleContext(m, tmdbId, lang);
+            var (context, detail) = await catalog.GetTitleContext(m, tmdbId, lang, source, ReadRchType());
             if (context == null)
                 return ErrorEnvelope("title_not_found", "Title is not found", 404);
 
@@ -363,7 +368,7 @@ public class TvClientController : BaseController
                 return wrapped;
             });
 
-            var (context, detail) = await catalog.GetTitleContext(media, body.tmdbId, body.lang ?? "en-US");
+            var (context, detail) = await catalog.GetTitleContext(media, body.tmdbId, body.lang ?? "en-US", body.source ?? "tmdb", ReadRchType());
             if (context == null)
                 return ErrorEnvelope("title_not_found", "Title is not found", 404);
 
@@ -389,6 +394,48 @@ public class TvClientController : BaseController
         {
             Serilog.Log.Error(ex, "CatchId={CatchId}", "id_tvclient_resolve");
             return ErrorEnvelope("resolve_failed", "Failed to resolve playback", 502);
+        }
+    }
+
+    [HttpGet]
+    [Route("api/tv/v1/debug/upstream")]
+    public async Task<ActionResult> UpstreamDebug(string media, long tmdbId, string provider = "phantom", string source = "tmdb", string lang = "en-US")
+    {
+        if (tmdbId <= 0)
+            return ErrorEnvelope("invalid_request", "tmdbId is required", 400);
+
+        string m = NormalizeMedia(media);
+        var auth = ReadAuth();
+        try
+        {
+            var api = new InternalApiClient(host, HttpContext.Request.Scheme, auth);
+            var catalog = new CatalogService(api);
+            var discovery = new ProviderDiscoveryService(api);
+            var (context, _) = await catalog.GetTitleContext(m, tmdbId, lang, source, ReadRchType());
+            if (context == null)
+                return ErrorEnvelope("title_not_found", "Title is not found", 404);
+
+            var providers = await discovery.Discover(context);
+            string p = string.IsNullOrWhiteSpace(provider) ? providers.default_provider : provider.ToLowerInvariant();
+            providers.provider_urls.TryGetValue(p, out string internalUrl);
+
+            var debug = new UpstreamParityDebugDto(
+                tmdbId,
+                m,
+                _parity.NormalizeSource(source),
+                p,
+                _parity.BuildEventsQuery(context, auth),
+                internalUrl ?? string.Empty,
+                _parity.EnsureRjson(internalUrl ?? string.Empty),
+                _parity.AuthFlags(auth)
+            );
+
+            return OkEnvelope(debug);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "CatchId={CatchId}", "id_tvclient_upstream_debug");
+            return ErrorEnvelope("upstream_debug_failed", "Failed to build upstream debug context", 502);
         }
     }
 }

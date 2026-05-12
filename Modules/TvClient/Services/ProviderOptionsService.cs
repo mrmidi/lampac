@@ -22,6 +22,7 @@ public class ProviderOptionsService
     readonly InternalApiClient _api;
     readonly CatalogService _catalog;
     readonly ProviderResponseNormalizer _normalizer;
+    readonly UpstreamParityContextBuilder _parity = new();
 
     public ProviderOptionsService(InternalApiClient api, CatalogService catalog, ProviderResponseNormalizer normalizer)
     {
@@ -74,7 +75,7 @@ public class ProviderOptionsService
         JObject detail = preloadedDetail;
         if (detail == null)
         {
-            var (_, fetched) = await _catalog.GetTitleContext("tv", context.tmdb_id, lang);
+            var (_, fetched) = await _catalog.GetTitleContext("tv", context.tmdb_id, lang, context.source, context.rchtype);
             detail = fetched;
         }
 
@@ -127,8 +128,14 @@ public class ProviderOptionsService
             };
 
         int timeoutSec = ModInit.conf?.providers_timeout_sec ?? 15;
-        string rootRaw = await _api.GetRaw(EnsureRjson(providerUrl), timeoutSec: timeoutSec, statusCodeOK: false);
+        string upstreamUrl = _parity.EnsureRjson(providerUrl);
+        Serilog.Log.Information("TvClient upstream provider [provider: {Provider}] [source: {Source}] [serial: {Serial}] [tmdb_id: {TmdbId}] [season: {Season}] [has_auth: {HasAuth}] [url: {Url}]",
+            provider, _parity.NormalizeSource(context.source), context.serial ? 1 : 0, context.tmdb_id, requestedSeason ?? 0,
+            _parity.AuthFlags(_api.Auth).Values.Any(v => v), upstreamUrl);
+        string rootRaw = await _api.GetRaw(upstreamUrl, timeoutSec: timeoutSec, statusCodeOK: false);
         var root = _normalizer.Parse(rootRaw);
+        Serilog.Log.Information("TvClient upstream provider parsed [provider: {Provider}] [parse_source: {ParseSource}] [payload_type: {PayloadType}] [raw_empty: {RawEmpty}]",
+            provider, root.ParseSource, root.Type.ToString().ToLowerInvariant(), string.IsNullOrWhiteSpace(rootRaw));
 
         if (!context.serial)
             return BuildMovie(context, provider, root, requestedTranslation, requestedQuality);

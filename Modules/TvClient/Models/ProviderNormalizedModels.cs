@@ -54,6 +54,8 @@ public record NormalizedEpisode(
 public record ProviderContext(
     string media,
     long tmdb_id,
+    string source,
+    string rchtype,
     string title,
     string original_title,
     string original_language,

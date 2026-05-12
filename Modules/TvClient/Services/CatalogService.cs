@@ -174,7 +174,7 @@ public class CatalogService
         );
     }
 
-    public virtual async Task<(ProviderContext context, JObject detail)> GetTitleContext(string media, long tmdbId, string lang)
+    public virtual async Task<(ProviderContext context, JObject detail)> GetTitleContext(string media, long tmdbId, string lang, string source = "tmdb", string rchtype = "")
     {
         string m = string.Equals(media, "tv", StringComparison.OrdinalIgnoreCase) ? "tv" : "movie";
         string apiKey = CoreInit.conf?.cub?.api_key;
@@ -207,6 +207,8 @@ public class CatalogService
         var ctx = new ProviderContext(
             m,
             tmdbId,
+            string.IsNullOrWhiteSpace(source) ? "tmdb" : source,
+            rchtype ?? string.Empty,
             title ?? originalTitle ?? string.Empty,
             originalTitle ?? title ?? string.Empty,
             detail.Value<string>("original_language") ?? string.Empty,

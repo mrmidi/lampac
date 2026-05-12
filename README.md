@@ -934,10 +934,11 @@ Endpoints:
 - `GET /api/tv/v1/movies?feed=trending|now_playing|popular&page=1&lang=en-US`
 - `GET /api/tv/v1/tv?feed=trending|popular|on_the_air|airing_today&page=1&lang=en-US`
 - `GET /api/tv/v1/search?q=<text>&media=all|movie|tv&page=1&lang=en-US`
-- `GET /api/tv/v1/title/{media}/{tmdbId}?lang=en-US`
-- `GET /api/tv/v1/title/{media}/{tmdbId}/providers`
-- `GET /api/tv/v1/title/{media}/{tmdbId}/providers/{provider}/options?season=1`
+- `GET /api/tv/v1/title/{media}/{tmdbId}?source=cub|tmdb&lang=en-US`
+- `GET /api/tv/v1/title/{media}/{tmdbId}/providers?source=cub|tmdb`
+- `GET /api/tv/v1/title/{media}/{tmdbId}/providers/{provider}/options?season=1&source=cub|tmdb`
 - `POST /api/tv/v1/play/resolve`
+- `GET /api/tv/v1/debug/upstream?media=tv&tmdbId=76479&provider=phantom&source=cub`
 
 Notes:
 
@@ -946,3 +947,4 @@ Notes:
 - `watching_now` is intentionally disabled in v1 (`enabled=false`, empty items).
 - Before QA/E2E on VPS, verify deployment with `GET /api/tv/v1/version` (`api_contract_version`, `git_sha`, `build_utc`).
 - Resolve responses are proxy-first: client playback URLs are expected to be Lampac-owned proxy URLs.
+- TvClient provider calls mirror Lampa-style request context (`source`, account/session params, `cub_id`) when provided.
