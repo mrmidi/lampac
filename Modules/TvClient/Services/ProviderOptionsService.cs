@@ -31,17 +31,6 @@ public class ProviderOptionsService
         _normalizer = normalizer;
     }
 
-    static string EnsureRjson(string url)
-    {
-        if (string.IsNullOrWhiteSpace(url))
-            return string.Empty;
-
-        if (Regex.IsMatch(url, "[?&]rjson=", RegexOptions.IgnoreCase))
-            return url;
-
-        return url + (url.Contains('?') ? "&" : "?") + "rjson=true";
-    }
-
     static string SelectTranslation(string requested, IReadOnlyList<TranslationOptionDto> translations)
     {
         if (translations == null || translations.Count == 0)
@@ -140,7 +129,7 @@ public class ProviderOptionsService
         if (!context.serial)
             return BuildMovie(context, provider, root, requestedTranslation, requestedQuality);
 
-        return await BuildSeries(context, provider, root, requestedSeason, requestedTranslation, requestedQuality, lang, preloadedDetail);
+        return await BuildSeries(context, provider, providerUrl, root, requestedSeason, requestedTranslation, requestedQuality, lang, preloadedDetail);
     }
 
     ProviderOptionsSnapshot BuildMovie(ProviderContext context, string provider, NormalizedProviderPayload payload, string requestedTranslation, string requestedQuality)
@@ -233,11 +222,12 @@ public class ProviderOptionsService
         };
     }
 
-    async Task<ProviderOptionsSnapshot> BuildSeries(ProviderContext context, string provider, NormalizedProviderPayload root, int? requestedSeason, string requestedTranslation, string requestedQuality, string lang, JObject preloadedDetail = null)
+    async Task<ProviderOptionsSnapshot> BuildSeries(ProviderContext context, string provider, string providerUrl, NormalizedProviderPayload root, int? requestedSeason, string requestedTranslation, string requestedQuality, string lang, JObject preloadedDetail = null)
     {
         int timeoutSec = ModInit.conf?.providers_timeout_sec ?? 15;
         var availableSeasons = new List<NormalizedSeason>();
         var episodesBySeason = new Dictionary<int, List<NormalizedEpisode>>();
+        var seasonVoices = new List<NormalizedVoice>();
 
         if (root.Type == ProviderPayloadType.Season)
         {
@@ -266,13 +256,41 @@ public class ProviderOptionsService
         List<NormalizedEpisode> selectedSeasonEpisodes = null;
         var seasonEntry = availableSeasons.FirstOrDefault(s => s.id == selectedSeason);
 
-        if (episodesBySeason.TryGetValue(selectedSeason, out var cachedEpisodes))
+        // Native Lampa behavior is effectively provider + season (+translation) driven.
+        // Try this deterministic path first to avoid stale/empty season-link payloads.
+        if (!string.IsNullOrWhiteSpace(providerUrl))
+        {
+            string seasonDirectUrl = BuildSeasonDirectUrl(providerUrl, context, selectedSeason, requestedTranslation);
+            Serilog.Log.Information("TvClient upstream provider season-direct [provider: {Provider}] [season: {Season}] [translation: {Translation}] [url: {Url}]",
+                provider, selectedSeason, requestedTranslation ?? string.Empty, seasonDirectUrl);
+
+            string seasonDirectRaw = await _api.GetRaw(seasonDirectUrl, timeoutSec: timeoutSec, statusCodeOK: false);
+            var seasonDirectPayload = _normalizer.Parse(seasonDirectRaw);
+
+            if (seasonDirectPayload.Type == ProviderPayloadType.Episode)
+            {
+                selectedSeasonEpisodes = seasonDirectPayload.Episodes
+                    .Where(e => e.season == 0 || e.season == selectedSeason)
+                    .Select(e => e.season == 0 ? e with { season = selectedSeason } : e)
+                    .ToList();
+
+                if (selectedSeasonEpisodes.Count > 0)
+                {
+                    episodesBySeason[selectedSeason] = selectedSeasonEpisodes;
+                    if (seasonDirectPayload.Voices?.Count > 0)
+                        seasonVoices.AddRange(seasonDirectPayload.Voices);
+                }
+            }
+        }
+
+        if (selectedSeasonEpisodes == null && episodesBySeason.TryGetValue(selectedSeason, out var cachedEpisodes))
         {
             selectedSeasonEpisodes = cachedEpisodes;
         }
-        else if (seasonEntry != null && !string.IsNullOrWhiteSpace(seasonEntry.url))
+        else if (selectedSeasonEpisodes == null && seasonEntry != null && !string.IsNullOrWhiteSpace(seasonEntry.url))
         {
-            string seasonRaw = await _api.GetRaw(EnsureRjson(seasonEntry.url), timeoutSec: timeoutSec, statusCodeOK: false);
+            string seasonUrl = BuildSeasonLinkUrl(seasonEntry.url, context);
+            string seasonRaw = await _api.GetRaw(_parity.EnsureRjson(seasonUrl), timeoutSec: timeoutSec, statusCodeOK: false);
             var seasonPayload = _normalizer.Parse(seasonRaw);
             if (seasonPayload.Type == ProviderPayloadType.Episode)
             {
@@ -286,6 +304,8 @@ public class ProviderOptionsService
                 }
 
                 episodesBySeason[selectedSeason] = selectedSeasonEpisodes;
+                if (seasonPayload.Voices?.Count > 0)
+                    seasonVoices.AddRange(seasonPayload.Voices);
 
                 if (seasonPayload.Voices?.Count > 0)
                 {
@@ -305,6 +325,7 @@ public class ProviderOptionsService
 
         var allVoices = new List<NormalizedVoice>();
         allVoices.AddRange(root.Voices ?? Array.Empty<NormalizedVoice>());
+        allVoices.AddRange(seasonVoices);
 
         if (allVoices.Count == 0)
         {
@@ -499,5 +520,32 @@ public class ProviderOptionsService
 
         int days = (int)Math.Ceiling((dt.Date - DateTime.UtcNow.Date).TotalDays);
         return days;
+    }
+
+    string BuildSeasonLinkUrl(string seasonUrl, ProviderContext context)
+    {
+        string pathAndQuery = Uri.TryCreate(seasonUrl, UriKind.Absolute, out var abs)
+            ? abs.PathAndQuery
+            : seasonUrl;
+
+        var map = _parity.BuildContextMap(context, _api.Auth);
+        return _parity.AppendMissingParams(pathAndQuery, map);
+    }
+
+    string BuildSeasonDirectUrl(string providerUrl, ProviderContext context, int season, string requestedTranslation)
+    {
+        string pathAndQuery = Uri.TryCreate(providerUrl, UriKind.Absolute, out var abs)
+            ? abs.PathAndQuery
+            : providerUrl;
+
+        var map = _parity.BuildContextMap(context, _api.Auth);
+        map["s"] = season.ToString();
+
+        string translation = requestedTranslation?.Trim();
+        if (!string.IsNullOrWhiteSpace(translation))
+            map["t"] = translation;
+
+        string enriched = _parity.AppendMissingParams(pathAndQuery, map);
+        return _parity.EnsureRjson(enriched);
     }
 }
