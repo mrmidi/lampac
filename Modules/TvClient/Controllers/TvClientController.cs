@@ -147,7 +147,7 @@ public class TvClientController : BaseController
             gitSha = informational.Split('+').Skip(1).FirstOrDefault() ?? string.Empty;
 
         string modPath = ModInit.modpath ?? string.Empty;
-        string manifestPath = string.IsNullOrWhiteSpace(modPath) ? string.Empty : Path.Combine(modPath, "manifest.json");
+        string manifestPath = string.IsNullOrWhiteSpace(modPath) ? string.Empty : System.IO.Path.Combine(modPath, "manifest.json");
         string manifestUtc = string.Empty;
         if (!string.IsNullOrWhiteSpace(manifestPath) && System.IO.File.Exists(manifestPath))
             manifestUtc = System.IO.File.GetLastWriteTimeUtc(manifestPath).ToString("O");

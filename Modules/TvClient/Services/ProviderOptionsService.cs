@@ -126,7 +126,8 @@ public class ProviderOptionsService
                 ParseSource = "none"
             };
 
-        string rootRaw = await _api.GetRaw(EnsureRjson(providerUrl), timeoutSec: ModInit.conf.providers_timeout_sec, statusCodeOK: false);
+        int timeoutSec = ModInit.conf?.providers_timeout_sec ?? 15;
+        string rootRaw = await _api.GetRaw(EnsureRjson(providerUrl), timeoutSec: timeoutSec, statusCodeOK: false);
         var root = _normalizer.Parse(rootRaw);
 
         if (!context.serial)
@@ -227,6 +228,7 @@ public class ProviderOptionsService
 
     async Task<ProviderOptionsSnapshot> BuildSeries(ProviderContext context, string provider, NormalizedProviderPayload root, int? requestedSeason, string requestedTranslation, string requestedQuality, string lang, JObject preloadedDetail = null)
     {
+        int timeoutSec = ModInit.conf?.providers_timeout_sec ?? 15;
         var availableSeasons = new List<NormalizedSeason>();
         var episodesBySeason = new Dictionary<int, List<NormalizedEpisode>>();
 
@@ -263,7 +265,7 @@ public class ProviderOptionsService
         }
         else if (seasonEntry != null && !string.IsNullOrWhiteSpace(seasonEntry.url))
         {
-            string seasonRaw = await _api.GetRaw(EnsureRjson(seasonEntry.url), timeoutSec: ModInit.conf.providers_timeout_sec, statusCodeOK: false);
+            string seasonRaw = await _api.GetRaw(EnsureRjson(seasonEntry.url), timeoutSec: timeoutSec, statusCodeOK: false);
             var seasonPayload = _normalizer.Parse(seasonRaw);
             if (seasonPayload.Type == ProviderPayloadType.Episode)
             {

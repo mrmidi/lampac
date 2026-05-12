@@ -17,6 +17,8 @@ public class ProviderDiscoveryService
         if (context == null)
             return empty;
 
+        var conf = ModInit.conf;
+        int timeoutSec = conf?.providers_timeout_sec ?? 15;
         string auth = _api.BuildAuthQuery();
         string q =
             $"id={context.tmdb_id}" +
@@ -33,11 +35,11 @@ public class ProviderDiscoveryService
         if (!string.IsNullOrWhiteSpace(auth))
             q += "&" + auth;
 
-        var token = await _api.GetJsonToken($"/lite/events?{q}", timeoutSec: ModInit.conf.providers_timeout_sec, statusCodeOK: false);
+        var token = await _api.GetJsonToken($"/lite/events?{q}", timeoutSec: timeoutSec, statusCodeOK: false);
         if (token is not JArray arr || arr.Count == 0)
             return empty;
 
-        var order = (ModInit.conf.provider_order ?? Array.Empty<string>())
+        var order = (conf?.provider_order ?? Array.Empty<string>())
             .Select((v, i) => (v: v.ToLowerInvariant(), i))
             .ToDictionary(x => x.v, x => x.i);
 
