@@ -1,4 +1,5 @@
 using TvClient.Models;
+using Shared.Services.Utilities;
 
 namespace TvClient.Services;
 

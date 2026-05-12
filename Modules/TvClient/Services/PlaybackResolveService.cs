@@ -46,7 +46,8 @@ public class PlaybackResolveService
             return null;
 
         var play = PlaybackSelection.ToPlayResult(candidate, request.quality, out string selectedQuality);
-        play = _wrapPlay?.Invoke(play);
+        if (_wrapPlay != null)
+            play = _wrapPlay(play);
         if (play == null || string.IsNullOrWhiteSpace(play.url))
             return null;
         if (string.IsNullOrWhiteSpace(selectedQuality))
@@ -98,7 +99,8 @@ public class PlaybackResolveService
             return null;
 
         var play = PlaybackSelection.ToPlayResult(selectedEpisode.play, request.quality, out string selectedQuality);
-        play = _wrapPlay?.Invoke(play);
+        if (_wrapPlay != null)
+            play = _wrapPlay(play);
         if (play == null || string.IsNullOrWhiteSpace(play.url))
             return null;
         if (string.IsNullOrWhiteSpace(selectedQuality))
@@ -115,7 +117,8 @@ public class PlaybackResolveService
             .Select(e =>
             {
                 var qPlay = PlaybackSelection.ToPlayResult(e.play, selectedQuality, out _);
-                qPlay = _wrapPlay?.Invoke(qPlay);
+                if (_wrapPlay != null)
+                    qPlay = _wrapPlay(qPlay);
                 if (qPlay == null || string.IsNullOrWhiteSpace(qPlay.url))
                     return null;
                 return new QueueItemDto(e.season, e.episode, e.name, e.title, qPlay);
