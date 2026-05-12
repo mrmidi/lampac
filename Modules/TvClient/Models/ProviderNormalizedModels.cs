@@ -10,6 +10,7 @@ public enum ProviderPayloadType
 
 public record NormalizedProviderPayload(
     ProviderPayloadType Type,
+    string ParseSource,
     IReadOnlyList<NormalizedVoice> Voices,
     IReadOnlyList<NormalizedSeason> Seasons,
     IReadOnlyList<NormalizedPlayableItem> Movies,

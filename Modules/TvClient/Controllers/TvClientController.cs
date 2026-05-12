@@ -1,6 +1,8 @@
 using TvClient.Models;
 using TvClient.Services;
 using System.Reflection;
+using Shared.Models.Base;
+using Shared.Services;
 
 namespace TvClient.Controllers;
 
@@ -28,6 +30,103 @@ public class TvClientController : BaseController
     static string NormalizeMedia(string media)
         => string.Equals(media, "tv", StringComparison.OrdinalIgnoreCase) ? "tv" : "movie";
 
+    static bool IsProxyUrl(string url)
+        => !string.IsNullOrWhiteSpace(url) && url.Contains("/proxy/", StringComparison.OrdinalIgnoreCase);
+
+    string WrapProxyUrlStrict(string url, IReadOnlyDictionary<string, string> headers, out string proxyMode)
+    {
+        proxyMode = "proxy";
+        if (string.IsNullOrWhiteSpace(url))
+            return string.Empty;
+
+        if (IsProxyUrl(url))
+            return url;
+
+        var conf = new BaseSettings
+        {
+            plugin = "tvclient",
+            streamproxy = true
+        };
+
+        string wrapped = HostStreamProxy(conf, url, HeadersModel.Init(headers ?? new Dictionary<string, string>()), proxy: null, force_streamproxy: true, rch: null);
+        if (!IsProxyUrl(wrapped))
+            return string.Empty;
+
+        return wrapped;
+    }
+
+    PlayResultDto WrapPlayStrict(PlayResultDto play, out string proxyMode)
+    {
+        proxyMode = "proxy";
+        if (play == null || string.IsNullOrWhiteSpace(play.url))
+            return null;
+
+        string wrapped = WrapProxyUrlStrict(play.url, play.headers, out proxyMode);
+        if (string.IsNullOrWhiteSpace(wrapped))
+            return null;
+
+        return play with { url = wrapped };
+    }
+
+    ProviderOptionsResponseDto WrapOptionsPlayStrict(ProviderOptionsResponseDto input, out bool ok, out string proxyMode)
+    {
+        ok = true;
+        proxyMode = "proxy";
+        if (input == null)
+            return input;
+
+        var episodes = (input.episodes ?? Array.Empty<EpisodeOptionDto>()).Select(ep =>
+        {
+            if (ep.play == null)
+                return ep;
+
+            string wrapped = WrapProxyUrlStrict(ep.play.url, ep.play.headers, out _);
+            if (string.IsNullOrWhiteSpace(wrapped))
+            {
+                ok = false;
+                return ep;
+            }
+
+            return ep with
+            {
+                play = ep.play with
+                {
+                    url = wrapped,
+                    stream_type = PlaybackSelection.DetectStreamType(wrapped)
+                }
+            };
+        }).ToArray();
+
+        var movieStreams = (input.movie_streams ?? Array.Empty<MovieStreamOptionDto>()).Select(ms =>
+        {
+            if (ms.play == null)
+                return ms;
+
+            string wrapped = WrapProxyUrlStrict(ms.play.url, ms.play.headers, out _);
+            if (string.IsNullOrWhiteSpace(wrapped))
+            {
+                ok = false;
+                return ms;
+            }
+
+            return ms with
+            {
+                play = ms.play with
+                {
+                    url = wrapped,
+                    stream_type = PlaybackSelection.DetectStreamType(wrapped)
+                }
+            };
+        }).ToArray();
+
+        return input with
+        {
+            proxy_mode = proxyMode,
+            episodes = episodes,
+            movie_streams = movieStreams
+        };
+    }
+
     [HttpGet]
     [Route("api/tv/v1/version")]
     public ActionResult Version()
@@ -36,6 +135,16 @@ public class TvClientController : BaseController
         string asmVersion = asm.GetName().Version?.ToString() ?? "unknown";
         string fileVersion = asm.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version ?? "unknown";
         string informational = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? string.Empty;
+        string buildUtc = string.Empty;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(asm.Location) && System.IO.File.Exists(asm.Location))
+                buildUtc = System.IO.File.GetLastWriteTimeUtc(asm.Location).ToString("O");
+        }
+        catch { }
+        string gitSha = string.Empty;
+        if (!string.IsNullOrWhiteSpace(informational))
+            gitSha = informational.Split('+').Skip(1).FirstOrDefault() ?? string.Empty;
 
         string modPath = ModInit.modpath ?? string.Empty;
         string manifestPath = string.IsNullOrWhiteSpace(modPath) ? string.Empty : Path.Combine(modPath, "manifest.json");
@@ -49,6 +158,9 @@ public class TvClientController : BaseController
             asm_version = asmVersion,
             file_version = fileVersion,
             informational_version = informational,
+            api_contract_version = "tvclient-v1.1",
+            git_sha = gitSha,
+            build_utc = buildUtc,
             mod_path = modPath,
             manifest_path = manifestPath,
             manifest_utc = manifestUtc,
@@ -213,7 +325,10 @@ public class TvClientController : BaseController
                 return ErrorEnvelope("provider_not_found", "Provider is not available for this title", 404);
 
             var snapshot = await optionsSvc.Build(context, selectedProvider, providerUrl, season, translation, quality, lang, detail);
-            return OkEnvelope(snapshot.Response);
+            var wrapped = WrapOptionsPlayStrict(snapshot.Response, out bool wrapOk, out string proxyMode);
+            if (!wrapOk)
+                return ErrorEnvelope("proxy_wrap_failed", "Failed to proxy one or more playable URLs", 502);
+            return OkEnvelope(wrapped with { proxy_mode = proxyMode });
         }
         catch (Exception ex)
         {
@@ -239,7 +354,11 @@ public class TvClientController : BaseController
             var discovery = new ProviderDiscoveryService(api);
             var normalizer = new ProviderResponseNormalizer();
             var optionsSvc = new ProviderOptionsService(api, catalog, normalizer);
-            var resolver = new PlaybackResolveService();
+            var resolver = new PlaybackResolveService(play =>
+            {
+                var wrapped = WrapPlayStrict(play, out _);
+                return wrapped;
+            });
 
             var (context, detail) = await catalog.GetTitleContext(media, body.tmdbId, body.lang ?? "en-US");
             if (context == null)
@@ -253,7 +372,13 @@ public class TvClientController : BaseController
             var snapshot = await optionsSvc.Build(context, provider, providerUrl, body.season, body.translation, body.quality, body.lang ?? "en-US", detail);
             var resolved = resolver.Resolve(body with { media = media }, snapshot);
             if (resolved == null)
+            {
+                bool hadPlayable = snapshot.Response?.episodes?.Any(e => e.status == "available" && e.play != null) == true
+                    || snapshot.Response?.movie_streams?.Any(m => m.play != null) == true;
+                if (hadPlayable)
+                    return ErrorEnvelope("proxy_wrap_failed", "Failed to proxy resolved stream URL", 502);
                 return ErrorEnvelope("resolve_failed", "No playable stream found", 404);
+            }
 
             return OkEnvelope(resolved);
         }

@@ -20,7 +20,7 @@ public class PlaybackResolveServiceTests
     {
         translations ??= new[] { new TranslationOptionDto("lf", "LostFilm", true) };
         var options = new ProviderOptionsResponseDto(
-            media, 1, "phantom", selectedSeason,
+            media, 1, "phantom", "ok", "rjson", "proxy", selectedSeason,
             new SelectionDto(selectedSeason, 1, "LostFilm", "lf", "1080p"),
             new[] { new SeasonOptionDto(selectedSeason, $"S{selectedSeason}", true) },
             translations,
@@ -131,7 +131,7 @@ public class PlaybackResolveServiceTests
     public void ResolveMovie_ShouldReturnEmptyQueue()
     {
         var options = new ProviderOptionsResponseDto(
-            "movie", 1, "phantom", 1,
+            "movie", 1, "phantom", "ok", "rjson", "proxy", 1,
             new SelectionDto(1, 0, "LostFilm", "lf", "1080p"),
             Array.Empty<SeasonOptionDto>(),
             new[] { new TranslationOptionDto("lf", "LostFilm", true) },
@@ -165,7 +165,7 @@ public class PlaybackResolveServiceTests
     public void ResolveMovie_WithNoStreams_ShouldReturnNull()
     {
         var options = new ProviderOptionsResponseDto(
-            "movie", 1, "phantom", 1,
+            "movie", 1, "phantom", "no_items", "none", "proxy", 1,
             new SelectionDto(1, 0, string.Empty, string.Empty, string.Empty),
             Array.Empty<SeasonOptionDto>(),
             Array.Empty<TranslationOptionDto>(),
@@ -193,5 +193,19 @@ public class PlaybackResolveServiceTests
     {
         var svc = new PlaybackResolveService();
         Assert.Null(svc.Resolve(new PlayResolveRequestDto("tv", 1, "phantom", 1, 1, null, null, "en-US", null, null, null, null, null), null));
+    }
+
+    [Fact]
+    public void ResolveSeries_WhenProxyWrapperFails_ShouldReturnNull()
+    {
+        var snapshot = MakeSnapshot("tv", new[]
+        {
+            MakeEpisode(1, 1, "available")
+        });
+
+        var svc = new PlaybackResolveService(_ => null);
+        var res = svc.Resolve(new PlayResolveRequestDto("tv", 1, "phantom", 1, 1, null, null, "en-US", null, null, null, null, null), snapshot);
+
+        Assert.Null(res);
     }
 }

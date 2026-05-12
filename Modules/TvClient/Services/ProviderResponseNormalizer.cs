@@ -22,7 +22,7 @@ public class ProviderResponseNormalizer
     }
 
     static NormalizedProviderPayload Empty()
-        => new(ProviderPayloadType.Unknown, Array.Empty<NormalizedVoice>(), Array.Empty<NormalizedSeason>(), Array.Empty<NormalizedPlayableItem>(), Array.Empty<NormalizedEpisode>());
+        => new(ProviderPayloadType.Unknown, "none", Array.Empty<NormalizedVoice>(), Array.Empty<NormalizedSeason>(), Array.Empty<NormalizedPlayableItem>(), Array.Empty<NormalizedEpisode>());
 
     NormalizedProviderPayload ParseJsonPayload(string json)
     {
@@ -46,19 +46,19 @@ public class ProviderResponseNormalizer
         if (type == "movie")
         {
             var data = root["data"]?.Children().Select(ParseMovieItem).Where(i => i != null).ToArray() ?? Array.Empty<NormalizedPlayableItem>();
-            return new NormalizedProviderPayload(ProviderPayloadType.Movie, voices, Array.Empty<NormalizedSeason>(), data, Array.Empty<NormalizedEpisode>());
+            return new NormalizedProviderPayload(ProviderPayloadType.Movie, "rjson", voices, Array.Empty<NormalizedSeason>(), data, Array.Empty<NormalizedEpisode>());
         }
 
         if (type == "season")
         {
             var seasons = root["data"]?.Children().Select(ParseSeasonItem).Where(i => i != null).ToArray() ?? Array.Empty<NormalizedSeason>();
-            return new NormalizedProviderPayload(ProviderPayloadType.Season, voices, seasons, Array.Empty<NormalizedPlayableItem>(), Array.Empty<NormalizedEpisode>());
+            return new NormalizedProviderPayload(ProviderPayloadType.Season, "rjson", voices, seasons, Array.Empty<NormalizedPlayableItem>(), Array.Empty<NormalizedEpisode>());
         }
 
         if (type == "episode")
         {
             var episodes = root["data"]?.Children().Select(ParseEpisodeItem).Where(i => i != null).ToArray() ?? Array.Empty<NormalizedEpisode>();
-            return new NormalizedProviderPayload(ProviderPayloadType.Episode, voices, Array.Empty<NormalizedSeason>(), Array.Empty<NormalizedPlayableItem>(), episodes);
+            return new NormalizedProviderPayload(ProviderPayloadType.Episode, "rjson", voices, Array.Empty<NormalizedSeason>(), Array.Empty<NormalizedPlayableItem>(), episodes);
         }
 
         return Empty();
@@ -177,17 +177,17 @@ public class ProviderResponseNormalizer
         if (hasSeason)
         {
             var seasons = items.Select(ParseSeasonItem).Where(i => i != null).ToArray();
-            return new NormalizedProviderPayload(ProviderPayloadType.Season, voices, seasons, Array.Empty<NormalizedPlayableItem>(), Array.Empty<NormalizedEpisode>());
+            return new NormalizedProviderPayload(ProviderPayloadType.Season, "html_data_json", voices, seasons, Array.Empty<NormalizedPlayableItem>(), Array.Empty<NormalizedEpisode>());
         }
 
         if (hasEpisode)
         {
             var episodes = items.Select(ParseEpisodeItem).Where(i => i != null).ToArray();
-            return new NormalizedProviderPayload(ProviderPayloadType.Episode, voices, Array.Empty<NormalizedSeason>(), Array.Empty<NormalizedPlayableItem>(), episodes);
+            return new NormalizedProviderPayload(ProviderPayloadType.Episode, "html_data_json", voices, Array.Empty<NormalizedSeason>(), Array.Empty<NormalizedPlayableItem>(), episodes);
         }
 
         var movies = items.Select(ParseMovieItem).Where(i => i != null).ToArray();
-        return new NormalizedProviderPayload(ProviderPayloadType.Movie, voices, Array.Empty<NormalizedSeason>(), movies, Array.Empty<NormalizedEpisode>());
+        return new NormalizedProviderPayload(ProviderPayloadType.Movie, "html_data_json", voices, Array.Empty<NormalizedSeason>(), movies, Array.Empty<NormalizedEpisode>());
     }
 
     static List<JObject> ParseDataJsonItems(HtmlDocument doc)

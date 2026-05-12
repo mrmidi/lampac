@@ -148,6 +148,9 @@ public class ProviderServicesTests
         Assert.Equal(1, snapshot.Response.episodes[0].episode);
         Assert.Equal("available", snapshot.Response.episodes[0].status);
         Assert.NotNull(snapshot.Response.episodes[0].play);
+        Assert.False(string.IsNullOrWhiteSpace(snapshot.Response.episodes[0].play.stream_type));
+        Assert.Equal("ok", snapshot.Response.provider_status);
+        Assert.False(string.IsNullOrWhiteSpace(snapshot.Response.parse_source));
 
         // TMDB-only episode is exposed as planned/upcoming, not selectable episode option.
         Assert.Contains(snapshot.Response.planned_episodes, e => e.episode == 2);

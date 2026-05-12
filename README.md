@@ -929,6 +929,7 @@ Base route: `/api/tv/v1`
 
 Endpoints:
 
+- `GET /api/tv/v1/version`
 - `GET /api/tv/v1/home?lang=en-US&page=1`
 - `GET /api/tv/v1/movies?feed=trending|now_playing|popular&page=1&lang=en-US`
 - `GET /api/tv/v1/tv?feed=trending|popular|on_the_air|airing_today&page=1&lang=en-US`
@@ -943,3 +944,5 @@ Notes:
 - Existing `/lite/*` provider behavior is untouched.
 - Provider payloads are normalized server-side (JSON first, HTML fallback).
 - `watching_now` is intentionally disabled in v1 (`enabled=false`, empty items).
+- Before QA/E2E on VPS, verify deployment with `GET /api/tv/v1/version` (`api_contract_version`, `git_sha`, `build_utc`).
+- Resolve responses are proxy-first: client playback URLs are expected to be Lampac-owned proxy URLs.

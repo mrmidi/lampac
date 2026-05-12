@@ -137,6 +137,8 @@ RESP=$(get "/api/tv/v1/version") || { fail "HTTP request failed"; RESP="{}"; }
 check "version: has module name"       "$RESP" "d['data'].get('module') == 'TvClient'"
 check "version: has asm_version"       "$RESP" "bool(d['data'].get('asm_version'))"
 check "version: has server_utc"        "$RESP" "bool(d['data'].get('server_utc'))"
+check "version: has contract version"  "$RESP" "bool(d['data'].get('api_contract_version'))"
+check "version: has build_utc"         "$RESP" "bool(d['data'].get('build_utc'))"
 
 # Wait for server to be ready (Roslyn compilation can take 10-20s after restart)
 echo -n "Waiting for server..."
@@ -250,6 +252,9 @@ check "options: all 5 BB seasons"      "$RESP" "len(d['data']['seasons']) == 5"
 check "options: episodes list"         "$RESP" "len(d['data']['episodes']) > 0"
 check "options: episode has air_date"  "$RESP" "bool(d['data']['episodes'][0].get('air_date'))"
 check "options: episode has status"    "$RESP" "bool(d['data']['episodes'][0].get('status'))"
+check "options: has provider_status"   "$RESP" "bool(d['data'].get('provider_status'))"
+check "options: has parse_source"      "$RESP" "bool(d['data'].get('parse_source'))"
+check "options: has proxy_mode"        "$RESP" "bool(d['data'].get('proxy_mode'))"
 
 AVAIL=$(echo "$RESP" | python3 -c "import json,sys; eps=json.load(sys.stdin)['data']['episodes']; print(len([e for e in eps if e['status']=='available']))" 2>/dev/null || echo "0")
 info "available episodes in S1: $AVAIL"
@@ -288,6 +293,7 @@ print(trs[0]['id'] if trs else '')
     check "resolve: has play.url"          "$RESP_R" "bool(d['data']['play']['url'])"
     check "resolve: has stream_type"       "$RESP_R" "bool(d['data']['play']['stream_type'])"
     check "resolve: stream_type known"     "$RESP_R" "d['data']['play']['stream_type'] in ('hls','dash','file','unknown')"
+    check "resolve: url is proxied"        "$RESP_R" "'/proxy/' in d['data']['play']['url']"
     check "resolve: has selected"          "$RESP_R" "isinstance(d['data']['selected'], dict)"
     check "resolve: has up_next list"      "$RESP_R" "isinstance(d['data']['up_next'], list)"
     info "play url: $(echo "$RESP_R" | python3 -c "import json,sys; print(json.load(sys.stdin)['data']['play']['url'][:80])" 2>/dev/null)"
@@ -340,6 +346,7 @@ else
     RESOLVE=$(post "/api/tv/v1/play/resolve" "$payload") || { fail "resolve for playable provider failed"; RESOLVE="{}"; }
     check "tv resolve: no error" "$RESOLVE" "d.get('error') is None"
     check "tv resolve: has play.url" "$RESOLVE" "bool(d['data']['play']['url'])"
+    check "tv resolve: url is proxied" "$RESOLVE" "'/proxy/' in d['data']['play']['url']"
 
     if have_ffprobe; then
         URL=$(echo "$RESOLVE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('data',{}).get('play',{}).get('url',''))" 2>/dev/null || echo "")

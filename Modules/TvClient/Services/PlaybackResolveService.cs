@@ -4,6 +4,13 @@ namespace TvClient.Services;
 
 public class PlaybackResolveService
 {
+    readonly Func<PlayResultDto, PlayResultDto> _wrapPlay;
+
+    public PlaybackResolveService(Func<PlayResultDto, PlayResultDto> wrapPlay = null)
+    {
+        _wrapPlay = wrapPlay;
+    }
+
     public PlayResolveResponseDto Resolve(PlayResolveRequestDto request, ProviderOptionsSnapshot snapshot)
     {
         if (snapshot?.Response == null)
@@ -39,6 +46,9 @@ public class PlaybackResolveService
             return null;
 
         var play = PlaybackSelection.ToPlayResult(candidate, request.quality, out string selectedQuality);
+        play = _wrapPlay?.Invoke(play);
+        if (play == null || string.IsNullOrWhiteSpace(play.url))
+            return null;
         if (string.IsNullOrWhiteSpace(selectedQuality))
             selectedQuality = PlaybackSelection.PickQuality(options.qualities, request.quality);
 
@@ -48,6 +58,9 @@ public class PlaybackResolveService
             "movie",
             request.tmdbId,
             request.provider,
+            snapshot.ProviderStatus,
+            snapshot.ParseSource,
+            "proxy",
             new SelectionDto(1, 0, selectedTranslation?.name ?? options.selected.translation, selectedTranslation?.id ?? options.selected.translation_id, selectedQuality),
             play,
             Array.Empty<QueueItemDto>()
@@ -85,6 +98,9 @@ public class PlaybackResolveService
             return null;
 
         var play = PlaybackSelection.ToPlayResult(selectedEpisode.play, request.quality, out string selectedQuality);
+        play = _wrapPlay?.Invoke(play);
+        if (play == null || string.IsNullOrWhiteSpace(play.url))
+            return null;
         if (string.IsNullOrWhiteSpace(selectedQuality))
             selectedQuality = PlaybackSelection.PickQuality(selectedEpisode.available_qualities, request.quality);
 
@@ -99,14 +115,21 @@ public class PlaybackResolveService
             .Select(e =>
             {
                 var qPlay = PlaybackSelection.ToPlayResult(e.play, selectedQuality, out _);
+                qPlay = _wrapPlay?.Invoke(qPlay);
+                if (qPlay == null || string.IsNullOrWhiteSpace(qPlay.url))
+                    return null;
                 return new QueueItemDto(e.season, e.episode, e.name, e.title, qPlay);
             })
+            .Where(i => i != null)
             .ToArray();
 
         return new PlayResolveResponseDto(
             "tv",
             request.tmdbId,
             request.provider,
+            snapshot.ProviderStatus,
+            snapshot.ParseSource,
+            "proxy",
             new SelectionDto(
                 season,
                 selectedEpisode.episode,

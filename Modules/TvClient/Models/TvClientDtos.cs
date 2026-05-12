@@ -80,6 +80,9 @@ public record ProviderOptionsResponseDto(
     string media,
     long tmdb_id,
     string provider,
+    string provider_status,
+    string parse_source,
+    string proxy_mode,
     int selected_season,
     SelectionDto selected,
     IReadOnlyList<SeasonOptionDto> seasons,
@@ -158,6 +161,9 @@ public record PlayResolveResponseDto(
     string media,
     long tmdb_id,
     string provider,
+    string provider_status,
+    string parse_source,
+    string proxy_mode,
     SelectionDto selected,
     PlayResultDto play,
     IReadOnlyList<QueueItemDto> up_next
@@ -176,7 +182,8 @@ public record PlayCandidateDto(
     string method,
     IReadOnlyDictionary<string, string> headers,
     IReadOnlyDictionary<string, string> quality,
-    IReadOnlyList<SubtitleOptionDto> subtitles
+    IReadOnlyList<SubtitleOptionDto> subtitles,
+    string stream_type = "unknown"
 );
 
 public record QueueItemDto(

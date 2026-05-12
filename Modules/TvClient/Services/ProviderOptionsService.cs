@@ -5,6 +5,8 @@ namespace TvClient.Services;
 public class ProviderOptionsSnapshot
 {
     public ProviderOptionsResponseDto Response { get; init; }
+    public string ProviderStatus { get; init; } = "failed";
+    public string ParseSource { get; init; } = "none";
 
     public IReadOnlyList<NormalizedEpisode> AllEpisodes { get; init; } = Array.Empty<NormalizedEpisode>();
 
@@ -105,6 +107,9 @@ public class ProviderOptionsService
                     context?.media ?? "movie",
                     context?.tmdb_id ?? 0,
                     provider ?? string.Empty,
+                    "failed",
+                    "none",
+                    "proxy",
                     1,
                     new SelectionDto(1, 0, string.Empty, string.Empty, string.Empty),
                     Array.Empty<SeasonOptionDto>(),
@@ -116,7 +121,9 @@ public class ProviderOptionsService
                     Array.Empty<MovieStreamOptionDto>()
                 ),
                 Context = context,
-                Provider = provider ?? string.Empty
+                Provider = provider ?? string.Empty,
+                ProviderStatus = "failed",
+                ParseSource = "none"
             };
 
         string rootRaw = await _api.GetRaw(EnsureRjson(providerUrl), timeoutSec: ModInit.conf.providers_timeout_sec, statusCodeOK: false);
@@ -180,7 +187,7 @@ public class ProviderOptionsService
                 string.IsNullOrWhiteSpace(selectedQuality) ? i.maxquality : selectedQuality,
                 qlist,
                 i.subtitles?.ToArray() ?? Array.Empty<SubtitleOptionDto>(),
-                new PlayCandidateDto(play.url, i.stream, i.method, i.headers, i.quality, i.subtitles)
+                new PlayCandidateDto(play.url, i.stream, i.method, i.headers, i.quality, i.subtitles, play.stream_type)
             );
         }).ToArray();
 
@@ -194,6 +201,9 @@ public class ProviderOptionsService
             "movie",
             context.tmdb_id,
             provider,
+            streamOptions.Length > 0 ? "ok" : "no_items",
+            payload.ParseSource ?? "none",
+            "proxy",
             1,
             new SelectionDto(1, 0, selectedTranslationName, selectedTranslationId, selectedQualityGlobal),
             Array.Empty<SeasonOptionDto>(),
@@ -209,7 +219,9 @@ public class ProviderOptionsService
         {
             Response = response,
             Context = context,
-            Provider = provider
+            Provider = provider,
+            ProviderStatus = streamOptions.Length > 0 ? "ok" : "no_items",
+            ParseSource = payload.ParseSource ?? "none"
         };
     }
 
@@ -389,6 +401,9 @@ public class ProviderOptionsService
             "tv",
             context.tmdb_id,
             provider,
+            ComputeProviderStatus(episodeOptions, planned),
+            root.ParseSource ?? "none",
+            "proxy",
             selectedSeason,
             new SelectionDto(selectedSeason, selectedEpisode, selectedTranslationName, selectedTranslationId, selectedQuality),
             mergedSeasons,
@@ -410,8 +425,24 @@ public class ProviderOptionsService
             AllEpisodes = allEpisodes,
             AllSeasons = mergedSeasons,
             Context = context,
-            Provider = provider
+            Provider = provider,
+            ProviderStatus = ComputeProviderStatus(episodeOptions, planned),
+            ParseSource = root.ParseSource ?? "none"
         };
+    }
+
+    static string ComputeProviderStatus(IReadOnlyList<EpisodeOptionDto> episodeOptions, IReadOnlyList<PlannedEpisodeDto> planned)
+    {
+        bool hasAvailable = episodeOptions?.Any(e => e.status == "available" && e.play != null) == true;
+        if (hasAvailable)
+            return "ok";
+
+        bool hasUpcoming = (episodeOptions?.Any(e => e.status == "upcoming" || e.status == "unavailable") == true)
+            || (planned?.Count > 0);
+        if (hasUpcoming)
+            return "upcoming_only";
+
+        return "no_items";
     }
 
     static string providerUrlFromEpisode(IReadOnlyList<NormalizedEpisode> episodes, int season)
@@ -426,6 +457,7 @@ public class ProviderOptionsService
     static EpisodeOptionDto ToEpisodeOption(NormalizedEpisode ep, string status, string airDate, int? daysUntil)
     {
         var candidate = new PlayCandidateDto(ep.url, ep.stream, ep.method, ep.headers, ep.quality, ep.subtitles);
+        var play = PlaybackSelection.ToPlayResult(candidate, null, out _);
         var qualities = (ep.quality?.Keys?.ToArray() ?? Array.Empty<string>())
             .Select(PlaybackSelection.NormalizeQuality)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -444,7 +476,7 @@ public class ProviderOptionsService
             ep.translation,
             ep.translation_id,
             ep.subtitles?.ToArray() ?? Array.Empty<SubtitleOptionDto>(),
-            candidate
+            candidate with { stream_type = play.stream_type }
         );
     }
 
